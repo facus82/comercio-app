@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(if \\(Test-Path \"c:\\\\Users\\\\FACMA\\\\Documents\\\\comercio-app\\\\schema.sql\"\\) { Write-Output \"EXISTE - $\\($\\(Get-Content 'c:\\\\Users\\\\FACMA\\\\Documents\\\\comercio-app\\\\schema.sql'\\).Count\\) lineas\" } else { Write-Output \"NO EXISTE\" })",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(npm install *)",
+      "Bash(npx vite *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\FACMA\\.claude\\projects\\c--Users-FACMA-Documents-comercio-app\\memory"
+    ]
+  }
+}

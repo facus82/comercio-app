@@ -1,0 +1,229 @@
+/* ── Toolbar (solo en pantalla) ── */
+.print-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  background: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  z-index: 10;
+}
+
+/* ── Documento ── */
+.print-doc {
+  max-width: 780px;
+  margin: 68px auto 48px;
+  padding: 40px 48px;
+  background: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  color: #1a1a1a;
+  line-height: 1.5;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  border-radius: 4px;
+}
+
+/* ── Encabezado ── */
+.print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #1e293b;
+  margin-bottom: 24px;
+}
+
+.print-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.print-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.print-comercio-info p {
+  margin: 0;
+  line-height: 1.6;
+  color: #374151;
+  font-size: 11px;
+}
+
+.print-comercio-nombre {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  margin-bottom: 4px !important;
+}
+
+.print-header-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.print-doc-tipo {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6b7280;
+  margin: 0;
+}
+
+.print-doc-numero {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  margin: 2px 0 10px;
+}
+
+.print-meta {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.print-meta td {
+  padding: 2px 0 2px 12px;
+  color: #6b7280;
+}
+
+.print-meta td:first-child {
+  color: #374151;
+  font-weight: 500;
+  padding-left: 0;
+}
+
+/* ── Cliente ── */
+.print-cliente {
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+}
+
+.print-section-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin: 0 0 4px;
+}
+
+.print-cliente-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+/* ── Tabla de ítems ── */
+.print-items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.print-items th {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.print-th-num { text-align: right !important; }
+
+.print-items td {
+  padding: 9px 10px;
+  border-bottom: 0.5px solid #f3f4f6;
+  color: #374151;
+  font-size: 12px;
+}
+
+.print-td-num { text-align: right; white-space: nowrap; }
+
+.print-items tbody tr:last-child td { border-bottom: none; }
+
+/* ── Totales ── */
+.print-totales {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+}
+
+.print-total-row {
+  display: flex;
+  gap: 40px;
+  font-size: 12px;
+  color: #6b7280;
+  min-width: 240px;
+  justify-content: space-between;
+}
+
+.print-total-row--final {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  padding-top: 8px;
+  border-top: 1.5px solid #1e293b;
+  margin-top: 4px;
+}
+
+/* ── Notas ── */
+.print-notas {
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+}
+
+.print-notas p { margin: 0; color: #374151; font-size: 11px; }
+
+/* ── Pie ── */
+.print-pie {
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  padding-top: 20px;
+  border-top: 0.5px solid #e5e7eb;
+}
+
+/* ════════════════════════════════════════════════════
+   MEDIA PRINT — oculta todo excepto el documento
+════════════════════════════════════════════════════ */
+@media print {
+  .no-print { display: none !important; }
+
+  .print-doc {
+    margin: 0;
+    padding: 24px 32px;
+    box-shadow: none;
+    border-radius: 0;
+    max-width: 100%;
+  }
+
+  /* Ocultar el resto de la app */
+  .sidebar,
+  .app-header,
+  .print-toolbar { display: none !important; }
+
+  body { background: #fff; }
+}

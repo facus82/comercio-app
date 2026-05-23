@@ -1,0 +1,7 @@
+@import './styles/tokens.css';
+@import './styles/components.css';
+
+#root {
+  height: 100vh;
+  overflow: hidden;
+}

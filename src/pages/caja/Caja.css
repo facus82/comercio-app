@@ -1,0 +1,326 @@
+.caja-page { max-width: var(--content-max-width); }
+
+.caja-estado-badge { font-size: 11px; }
+
+/* ── CAJA CERRADA ── */
+.caja-cols {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.caja-col-main,
+.caja-col-historial {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── CAJA ABIERTA ── */
+.caja-abierta-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+.caja-panel-main,
+.caja-panel-arqueo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── MÉTRICAS ── */
+.caja-metricas {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.caja-stat {
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.caja-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+}
+
+.caja-stat-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ── MEDIOS DE PAGO ── */
+.caja-medios-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.caja-medio-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.caja-medio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.caja-medio-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.caja-medio-label .ti {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.caja-medio-monto {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.caja-medio-bar-track {
+  height: 5px;
+  background: var(--color-border-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.caja-medio-bar-fill {
+  height: 100%;
+  background: var(--color-border-primary);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* ── TABS CC ── */
+.caja-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.caja-tab {
+  font-size: 11px;
+  font-family: var(--font-family-base);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 0.5px solid var(--color-border-secondary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.caja-tab:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
+}
+
+.caja-tab--active {
+  background: var(--color-border-primary);
+  color: #fff;
+  border-color: var(--color-border-primary);
+  font-weight: 500;
+}
+
+/* ── CC GRID ── */
+.caja-cc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.caja-cc-card {
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.caja-cc-nombre {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-left: 3px solid;
+  padding-left: 7px;
+  margin-bottom: 6px;
+}
+
+.caja-cc-total {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.caja-cc-sub {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.caja-cc-detail { padding: 4px 0; }
+
+.caja-cc-header {
+  border-left: 3px solid;
+  padding-left: 10px;
+  margin-bottom: 12px;
+}
+
+.caja-cc-nombre-big {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.caja-cc-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── ARQUEO ── */
+.caja-arqueo-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.caja-arqueo-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.caja-arqueo-row--total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  border-bottom: none;
+  padding-top: 4px;
+}
+
+.caja-arqueo-diferencia {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+.caja-arqueo-diferencia.pos {
+  background: var(--color-success-50);
+  color: var(--color-success-700);
+}
+
+.caja-arqueo-diferencia.neg {
+  background: var(--color-danger-50);
+  color: var(--color-danger-600);
+}
+
+.caja-arqueo-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.caja-rol-hint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── HISTORIAL ── */
+.caja-historial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.caja-historial-item {
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.caja-hist-fecha {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.caja-hist-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.caja-hist-row--sep {
+  border-top: 0.5px solid var(--color-border-tertiary);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.caja-hist-diferencia {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.caja-hist-diferencia.pos { color: var(--color-success-700); }
+.caja-hist-diferencia.neg { color: var(--color-danger-600); }
+
+/* ── PRINT ── */
+@media print {
+  .sidebar,
+  .app-header,
+  .caja-panel-main { display: none !important; }
+
+  .caja-abierta-layout { grid-template-columns: 1fr; }
+
+  .caja-panel-arqueo { width: 100%; }
+
+  .caja-arqueo-actions { display: none !important; }
+}

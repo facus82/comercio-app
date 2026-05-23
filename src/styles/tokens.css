@@ -1,0 +1,184 @@
+:root {
+  /* ── Paleta base — success ── */
+  --color-success-50:  #D1FAE5;
+  --color-success-100: #A7F3D0;
+  --color-success-500: #10B981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+
+  /* ── Paleta base — warning ── */
+  --color-warning-50:  #FEF3C7;
+  --color-warning-100: #FDE68A;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D97706;
+  --color-warning-700: #B45309;
+
+  /* ── Paleta base — danger ── */
+  --color-danger-50:  #FEE2E2;
+  --color-danger-100: #FECACA;
+  --color-danger-300: #FCA5A5;
+  --color-danger-500: #EF4444;
+  --color-danger-600: #DC2626;
+  --color-danger-700: #B91C1C;
+
+  /* ── Paleta base — info / primary ── */
+  --color-primary-50:  #DBEAFE;
+  --color-primary-100: #BFDBFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #3B82F6;
+  --color-primary-600: #2563EB;
+  --color-primary-700: #1D4ED8;
+  --color-primary-800: #1E40AF;
+  --color-primary-900: #1E3A8A;
+
+  /* ── Neutrales ── */
+  --color-neutral-0:   #FFFFFF;
+  --color-neutral-50:  #F9FAFB;
+  --color-neutral-100: #F3F4F6;
+  --color-neutral-200: #E5E7EB;
+  --color-neutral-300: #D1D5DB;
+  --color-neutral-400: #9CA3AF;
+  --color-neutral-500: #6B7280;
+  --color-neutral-600: #4B5563;
+  --color-neutral-700: #374151;
+  --color-neutral-800: #1F2937;
+  --color-neutral-900: #111827;
+
+  /* ── Sidebar oscuro ── */
+  --sidebar-bg:                 #0F172A;
+  --sidebar-text:               #94A3B8;
+  --sidebar-text-active:        #F1F5F9;
+  --sidebar-item-active-bg:     #1E293B;
+  --sidebar-item-active-border: #6366F1;
+  --sidebar-section:            #334155;
+
+  /* ── Sistema de diseño — nuevos tokens ── */
+  --color-bg-app:       #F8FAFC;
+  --color-bg-card:      #FFFFFF;
+  --color-border:       #E2E8F0;
+  --color-border-input: #CBD5E1;
+
+  --color-text-primary:   #0F172A;
+  --color-text-secondary: #64748B;
+  --color-text-tertiary:  #94A3B8;
+
+  --color-accent:       #6366F1;
+  --color-accent-hover: #4F46E5;
+
+  --color-success:    #10B981;
+  --color-success-bg: #D1FAE5;
+  --color-danger:     #EF4444;
+  --color-danger-bg:  #FEE2E2;
+  --color-warning:    #F59E0B;
+  --color-warning-bg: #FEF3C7;
+  --color-info:       #3B82F6;
+  --color-info-bg:    #DBEAFE;
+
+  /* ── Aliases de compatibilidad (usados en componentes existentes) ── */
+  --color-bg:               var(--color-bg-app);
+  --color-bg-primary:       var(--color-bg-card);
+  --color-bg-secondary:     var(--color-bg-app);
+  --color-bg-surface:       var(--color-bg-card);
+  --color-bg-elevated:      var(--color-bg-card);
+  --color-border-primary:   var(--color-accent);
+  --color-border-secondary: var(--color-border-input);
+  --color-border-tertiary:  var(--color-border);
+  --color-border-focus:     var(--color-accent);
+  --color-text:             var(--color-text-primary);
+  --color-text-muted:       var(--color-text-secondary);
+  --color-text-subtle:      var(--color-text-tertiary);
+  --color-text-inverse:     #ffffff;
+  --color-text-danger:      var(--color-danger);
+  --color-text-success:     var(--color-success);
+  --color-text-warning:     var(--color-warning);
+  --color-text-info:        var(--color-info);
+
+  /* ── Tipografía ── */
+  --font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family-ui:   'Inter', system-ui, -apple-system, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --font-size-xs:   0.75rem;
+  --font-size-sm:   0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg:   1.125rem;
+  --font-size-xl:   1.25rem;
+  --font-size-2xl:  1.5rem;
+  --font-size-3xl:  1.875rem;
+
+  --font-weight-normal:   400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  --line-height-tight:  1.25;
+  --line-height-normal: 1.5;
+  --line-height-loose:  1.75;
+
+  /* ── Espaciado ── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* ── Bordes ── */
+  --radius-sm:   0.25rem;
+  --radius-base: 0.375rem;
+  --radius-md:   0.5rem;
+  --radius-lg:   0.75rem;
+  --radius-xl:   1rem;
+  --radius-full: 9999px;
+
+  /* ── Sombras ── */
+  --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* ── Transiciones ── */
+  --transition-fast:   150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow:   350ms ease;
+
+  /* ── Layout ── */
+  --sidebar-width:           240px;
+  --sidebar-width-collapsed: 64px;
+  --header-height:           60px;
+  --content-max-width:       1280px;
+
+  /* ── Z-index ── */
+  --z-base:     0;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-modal:    300;
+  --z-toast:    400;
+}
+
+/* ── Reset base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-app);
+  line-height: var(--line-height-normal);
+}

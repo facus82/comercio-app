@@ -1,0 +1,33 @@
+import { Outlet, Navigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
+import Sidebar from './Sidebar'
+import Header from './Header'
+import './AppLayout.css'
+
+export default function AppLayout() {
+  const { session, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="app-loading-spinner" />
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />
+  }
+
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <div className="app-body">
+        <Header />
+        <main className="app-content">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}

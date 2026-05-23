@@ -1,0 +1,201 @@
+.compras-page {
+  max-width: var(--content-max-width);
+}
+
+.compras-deuda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-warning-700);
+  background: var(--color-warning-50);
+  border: 0.5px solid var(--color-warning-200);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.compra-prov {
+  font-weight: 500;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compra-total {
+  font-weight: 500;
+}
+
+.compras-count {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: var(--space-2) 0 0;
+  text-align: right;
+}
+
+/* ── Panel ancho para compras ────────────────────────────── */
+.panel--wide {
+  width: 700px;
+}
+
+/* ── Tabla de items ──────────────────────────────────────── */
+.compra-items-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compra-items-head,
+.compra-item-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 100px 60px 60px 90px 30px;
+  gap: 6px;
+  align-items: center;
+}
+
+.compra-items-head {
+  padding: 0 2px 4px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.compra-items-head span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+}
+
+.compra-item-row {
+  padding: 2px 0;
+}
+
+/* Columnas alineadas a la derecha */
+.ci-qty, .ci-price, .ci-iva, .ci-desc {
+  text-align: right;
+}
+
+.ci-sub {
+  text-align: right;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+}
+
+.ci-sub-val {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Producto seleccionado */
+.ci-prod-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.ci-prod-selected:hover {
+  border-color: var(--color-border-primary);
+}
+
+.ci-prod-nombre {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.ci-prod-clear {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* Dropdown de búsqueda */
+.prod-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.prod-dropdown-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.prod-dropdown-item:hover {
+  background: var(--color-bg-secondary);
+}
+
+.prod-dd-nombre {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prod-dd-codigo {
+  font-size: 11px;
+  font-family: var(--font-family-mono);
+}
+
+.prod-dd-precio {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* ── Totales ──────────────────────────────────────────────── */
+.compra-totales {
+  gap: 6px !important;
+}
+
+.compra-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 2px 0;
+}
+
+.compra-total-row--total {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  border-top: 0.5px solid var(--color-border-tertiary);
+  padding-top: 8px;
+  margin-top: 2px;
+}

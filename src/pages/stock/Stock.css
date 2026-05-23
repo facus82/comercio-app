@@ -1,0 +1,76 @@
+.stock-page {
+  max-width: var(--content-max-width);
+}
+
+.stock-nombre {
+  font-weight: 500;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stock-precio-venta {
+  font-weight: 500;
+}
+
+.stock-count {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: var(--space-2) 0 0;
+  text-align: right;
+}
+
+/* ── Calculadora de precios ───────────── */
+.calc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  gap: var(--space-3);
+}
+
+.calc-row--base {
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+}
+
+.calc-row--sugerido {
+  background: color-mix(in srgb, var(--color-success-500) 8%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--color-success-500) 30%, transparent);
+}
+
+.calc-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.calc-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.calc-value--sugerido {
+  font-size: 16px;
+  color: var(--color-text-success);
+}
+
+.field-input--venta {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
+}
+
+.field-input--promo {
+  color: var(--color-text-warning);
+  border-color: var(--color-warning-300);
+}
+
+.promo-toggle {
+  margin-top: var(--space-1);
+}

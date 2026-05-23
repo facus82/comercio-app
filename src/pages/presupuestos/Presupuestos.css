@@ -1,0 +1,48 @@
+.presupuestos-page { max-width: var(--content-max-width); }
+
+.pres-cliente {
+  font-weight: 500;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pres-count {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: var(--space-2) 0 0;
+  text-align: right;
+}
+
+.pres-items-head,
+.pres-item-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 100px 60px 90px 30px;
+  gap: 6px;
+  align-items: center;
+}
+
+.pres-items-head {
+  padding: 0 2px 4px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.pres-items-head span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+}
+
+.pres-item-row { padding: 2px 0; }
+
+/* ── Overlay de impresión ── */
+.print-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-secondary);
+  z-index: var(--z-modal);
+  overflow-y: auto;
+}

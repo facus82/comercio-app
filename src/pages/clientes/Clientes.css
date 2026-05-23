@@ -1,0 +1,19 @@
+.clientes-page { max-width: var(--content-max-width); }
+
+.cli-nombre {
+  font-weight: 500;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cli-saldo--neg { color: var(--color-danger-600); font-weight: 500; }
+.cli-saldo--pos { color: var(--color-success-700); font-weight: 500; }
+
+.cli-count {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin: var(--space-2) 0 0;
+  text-align: right;
+}
