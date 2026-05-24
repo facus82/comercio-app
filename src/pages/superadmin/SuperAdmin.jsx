@@ -12,7 +12,7 @@ const TABS = [
 
 const PLANES = ['basic', 'pro', 'enterprise']
 
-const ROLES_USUARIO = ['cajero', 'data_entry', 'readonly']
+const ROLES_USUARIO = ['propietario', 'cajero', 'data_entry', 'readonly']
 
 const DEPARTAMENTOS_LR = [
   'Capital', 'Arauco', 'Castro Barros', 'Chilecito', 'Coronel Felipe Varela',
