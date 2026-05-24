@@ -1,19 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl    = import.meta.env.VITE_SUPABASE_URL
-const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY
-
 /**
- * Cliente Supabase con service_role key.
- * ⚠️  Bypasses RLS — usar SOLO en el panel /superadmin.
- * Requiere VITE_SUPABASE_SERVICE_KEY en .env (NO el anon key).
- * Si no está configurado, las acciones de creación/invitación estarán deshabilitadas.
+ * ⛔ DEPRECATED — Este archivo ya no se usa.
+ *
+ * La service_role key se usaba acá con un prefijo VITE_, lo que la exponía
+ * en el bundle del browser. Fue reemplazado por la Edge Function `admin-ops`
+ * (supabase/functions/admin-ops/index.ts) que corre server-side.
+ *
+ * Usar adminOps de src/lib/adminOps.js en su lugar.
  */
-export const supabaseAdmin = serviceRoleKey
-  ? createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession:   false,
-      },
-    })
-  : null
