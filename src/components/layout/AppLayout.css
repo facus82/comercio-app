@@ -41,3 +41,24 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Overlay oscuro cuando el sidebar está abierto en mobile */
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 199;
+  }
+
+  /* El contenido no queda tapado por el bottom nav */
+  .app-content {
+    padding: var(--space-4);
+    padding-bottom: calc(60px + var(--space-4));
+  }
+}

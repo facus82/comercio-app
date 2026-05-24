@@ -37,7 +37,7 @@ const SECTIONS = [
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ menuOpen, onClose }) {
   const { perfil } = useAuth()
 
   const esPropietario = perfil?.rol === 'propietario'
@@ -45,7 +45,7 @@ export default function Sidebar() {
   const localidad      = perfil?.comercio?.localidad || 'Argentina'
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${menuOpen ? ' sidebar--open' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-logo">
           {perfil?.comercio?.logo_url
@@ -69,6 +69,7 @@ export default function Sidebar() {
                 <NavLink
                   key={to}
                   to={to}
+                  onClick={onClose}
                   className={({ isActive }) =>
                     `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
                   }

@@ -73,3 +73,35 @@
   color: var(--color-danger-600);
   border-color: var(--color-danger-100);
 }
+
+/* Botón hamburguesa — solo en mobile */
+.header-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 20px;
+  border-radius: var(--radius-base);
+  transition: background 0.15s, color 0.15s;
+}
+
+.header-menu-btn:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 768px) {
+  .header-menu-btn {
+    display: flex;
+  }
+
+  /* Ocultar info de usuario en mobile para ahorrar espacio */
+  .header-user-info {
+    display: none;
+  }
+}

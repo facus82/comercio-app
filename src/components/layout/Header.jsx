@@ -2,7 +2,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { Icon } from '../../lib/icons'
 import './Header.css'
 
-export default function Header() {
+export default function Header({ onMenuToggle }) {
   const { perfil, signOut } = useAuth()
 
   const iniciales = perfil
@@ -11,7 +11,17 @@ export default function Header() {
 
   return (
     <header className="app-header">
-      <div className="header-left" />
+      <div className="header-left">
+        {/* Botón hamburguesa — solo visible en mobile */}
+        <button
+          className="header-menu-btn"
+          onClick={onMenuToggle}
+          title="Menú"
+          type="button"
+        >
+          <i className="ti ti-menu-2" />
+        </button>
+      </div>
 
       <div className="header-right">
         <div className="header-user">
