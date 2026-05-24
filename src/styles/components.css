@@ -463,6 +463,30 @@
 
 .col-span-2 { grid-column: span 2; }
 
+/* ── Responsive mobile — panel y grillas ─────────────────── */
+@media (max-width: 768px) {
+  /* Panel lateral ocupa toda la pantalla en mobile */
+  .panel {
+    width: 100vw !important;
+    top: 0;
+    border-radius: 0;
+  }
+
+  /* Form grids en 1 columna */
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-grid--3 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* col-span-2 no aplica en grilla de 1 col */
+  .form-grid .col-span-2 {
+    grid-column: span 1;
+  }
+}
+
 .form-checks {
   display: flex;
   flex-wrap: wrap;

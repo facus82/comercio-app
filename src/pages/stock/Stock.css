@@ -2,6 +2,53 @@
   max-width: var(--content-max-width);
 }
 
+/* ── Responsive mobile ───────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Tabla con scroll horizontal */
+  .stock-page .table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ocultar columnas no esenciales: Código, Categoría, Costo, Estado */
+  .stock-page .data-table th:nth-child(1),
+  .stock-page .data-table td:nth-child(1),
+  .stock-page .data-table th:nth-child(3),
+  .stock-page .data-table td:nth-child(3),
+  .stock-page .data-table th:nth-child(4),
+  .stock-page .data-table td:nth-child(4),
+  .stock-page .data-table th:nth-child(7),
+  .stock-page .data-table td:nth-child(7) {
+    display: none;
+  }
+
+  /* Nombre más corto en mobile */
+  .stock-nombre {
+    max-width: 160px;
+  }
+
+  /* Botones del toolbar — apilar en 2 filas */
+  .stock-page > div:first-child {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /* Botones de acción en fila */
+  .stock-page > div:first-child > div:last-child {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* Ocultar texto en botones secundarios, dejar solo ícono */
+  .stock-page .btn:not(.btn--primary) span,
+  .stock-page .btn:not(.btn--primary) {
+    font-size: 11px;
+  }
+}
+
 .stock-nombre {
   font-weight: 500;
   max-width: 260px;
