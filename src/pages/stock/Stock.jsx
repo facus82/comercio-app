@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useProductos } from '../../hooks/useProductos'
 import ProductoPanel from './ProductoPanel'
 import ImportarExcel from './ImportarExcel'
+import ActualizarPreciosModal from './ActualizarPreciosModal'
 import './Stock.css'
 
 const fmt$ = v =>
@@ -25,7 +26,7 @@ export default function Stock() {
 
   const {
     productos, categorias, proveedores, centrosCostos,
-    loading, crear, actualizar, toggleActivo,
+    loading, crear, actualizar, actualizarMasivo, toggleActivo,
   } = useProductos(comercioId, perfil?.id)
 
   const [busqueda,        setBusqueda]        = useState('')
@@ -34,6 +35,7 @@ export default function Stock() {
   const [panelAbierto,    setPanelAbierto]    = useState(false)
   const [productoEditar,  setProductoEditar]  = useState(null)
   const [importando,      setImportando]      = useState(false)
+  const [actualizandoPrecios, setActualizandoPrecios] = useState(false)
 
   // Aplicar filtros desde URL (ej: /stock?stockBajo=1 o /stock?q=cafe)
   useEffect(() => {
@@ -124,6 +126,10 @@ export default function Stock() {
             <i className="ti ti-file-import" />
             Importar Excel
           </button>
+          <button className="btn" onClick={() => setActualizandoPrecios(true)}>
+            <i className="ti ti-trending-up" />
+            Actualizar precios
+          </button>
           <button className="btn btn--primary" onClick={abrirNuevo}>
             <i className="ti ti-plus" />
             Nuevo producto
@@ -160,7 +166,7 @@ export default function Stock() {
                 <th>Nombre</th>
                 <th>Categoría</th>
                 <th className="td-right">Costo</th>
-                <th className="td-right">Venta</th>
+                <th className="td-right">Venta c/IVA</th>
                 <th>Stock</th>
                 <th>Estado</th>
                 <th />
@@ -249,6 +255,16 @@ export default function Stock() {
           onCrear={crear}
           onActualizar={actualizar}
           onCerrar={() => setImportando(false)}
+        />
+      )}
+
+      {/* Modal actualización masiva de precios */}
+      {actualizandoPrecios && (
+        <ActualizarPreciosModal
+          productos={productos}
+          categorias={categorias}
+          onActualizarMasivo={actualizarMasivo}
+          onCerrar={() => setActualizandoPrecios(false)}
         />
       )}
 

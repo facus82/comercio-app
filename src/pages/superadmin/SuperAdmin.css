@@ -1,0 +1,399 @@
+/* ── SuperAdmin page ─────────────────────────────────────── */
+
+.sa-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Header */
+.sa-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.sa-page-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 3px;
+}
+
+.sa-page-sub {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* Tabs */
+.sa-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 20px;
+}
+
+.sa-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: var(--font-family-base);
+  margin-bottom: -1px;
+}
+
+.sa-tab i { font-size: 14px; }
+
+.sa-tab:hover { color: var(--color-text-primary); }
+
+.sa-tab--active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* Tab body */
+.sa-tab-body {
+  background: var(--color-bg-card);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sa-tab-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Toolbar dentro del tab */
+.sa-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sa-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.sa-section-title i { font-size: 15px; color: var(--color-accent); }
+
+.sa-section-desc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 4px 0 0;
+}
+
+/* Sección anidada */
+.sa-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Formulario */
+.sa-form-card {
+  background: #F8FAFC;
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.sa-form-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sa-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.sa-form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Mensajes */
+.sa-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-600);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.sa-error i { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+.sa-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-success-bg);
+  color: var(--color-success-600);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+
+.sa-ok i { font-size: 14px; }
+
+.sa-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 13px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+}
+
+.sa-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--color-warning-bg);
+  border: 0.5px solid var(--color-warning-100);
+  color: var(--color-warning-700);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+
+.sa-warning i { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.sa-warning strong { display: block; margin-bottom: 3px; font-size: 12px; }
+.sa-warning p { margin: 0; line-height: 1.5; }
+.sa-warning code {
+  background: rgba(0,0,0,0.08);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+}
+
+.sa-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.sa-empty i { font-size: 32px; opacity: 0.3; }
+.sa-empty p { font-size: 13px; margin: 0; }
+
+/* Plan table */
+.sa-plan-table th.tc,
+.sa-plan-table td.tc {
+  text-align: center;
+  width: 100px;
+}
+
+/* Overrides por comercio */
+.sa-overrides-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sa-override-card {
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--color-bg-card);
+}
+
+.sa-override-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sa-override-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sa-override-nombre {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.sa-modulos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sa-modulo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-family-base);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  transition: all 0.12s;
+}
+
+.sa-modulo-btn i { font-size: 11px; }
+
+.sa-modulo-btn--on {
+  background: var(--color-success-bg);
+  color: var(--color-success-600);
+  border-color: var(--color-success-100);
+}
+
+.sa-modulo-btn--off {
+  background: var(--color-bg-app);
+  color: var(--color-text-tertiary);
+  border-color: var(--color-border);
+}
+
+.sa-modulo-btn--custom {
+  outline: 1.5px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.sa-modulo-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sa-modulo-btn:not(:disabled):hover {
+  filter: brightness(0.95);
+  transform: translateY(-1px);
+}
+
+/* Celda propietario */
+.sa-prop-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Botón "Asignar propietario" en celda vacía */
+.sa-btn-asignar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-family-base);
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: 0.5px dashed var(--color-border-input);
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.sa-btn-asignar:hover:not(:disabled) {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  border-style: solid;
+}
+
+.sa-btn-asignar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Fila expandida formulario inline */
+.sa-tr-expand td {
+  background: #F8FAFC;
+  padding: 10px 14px !important;
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.sa-inline-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sa-inline-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sa-inline-label strong { color: var(--color-text-primary); }
+
+.sa-inline-form .field-input {
+  width: 200px;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+/* Botón "Entrar como propietario" */
+.sa-btn-entrar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-family-base);
+  color: var(--color-accent);
+  background: transparent;
+  border: 0.5px solid var(--color-accent);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sa-btn-entrar:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.sa-btn-entrar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Reutilizar clases globales de tabla */
+.td-muted {
+  color: var(--color-text-secondary);
+}

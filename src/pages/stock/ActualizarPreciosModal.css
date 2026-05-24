@@ -1,0 +1,303 @@
+/* ══════════════════════════════════════════════════
+   ActualizarPreciosModal — Modal de actualización masiva
+   Sigue las design_rules globales
+   ══════════════════════════════════════════════════ */
+
+.apm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 200;
+  backdrop-filter: blur(1px);
+}
+
+.apm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 201;
+  margin: auto;
+  top: 40px;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(860px, calc(100vw - 48px));
+  background: var(--color-bg-card);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(15, 23, 42, 0.18);
+}
+
+/* ── Header ── */
+.apm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 13px;
+  border-bottom: 0.5px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.apm-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.apm-header-title .ti {
+  font-size: 16px;
+  color: var(--color-accent);
+}
+
+/* ── Controles (filtros + ajuste) ── */
+.apm-controls {
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  background: var(--color-bg-app);
+}
+
+.apm-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.apm-filters .search-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.apm-select-cat {
+  min-width: 180px;
+  flex-shrink: 0;
+}
+
+/* Modos radio */
+.apm-ajuste-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.apm-modos {
+  display: flex;
+  gap: 8px;
+}
+
+.apm-modo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 0.5px solid var(--color-border);
+  background: var(--color-bg-card);
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.apm-modo input[type="radio"] {
+  display: none;
+}
+
+.apm-modo .ti {
+  font-size: 13px;
+}
+
+.apm-modo--active {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* Fila de porcentaje */
+.apm-pct-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.apm-pct-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  min-width: 220px;
+}
+
+.apm-pct-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.apm-pct-input {
+  width: 88px;
+  text-align: right;
+  font-weight: 500;
+}
+
+.apm-pct-sym {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.apm-pct-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.apm-pct-hint--up {
+  background: var(--color-danger-bg, #FEE2E2);
+  color: var(--color-danger, #EF4444);
+}
+
+.apm-pct-hint--down {
+  background: var(--color-success-bg, #D1FAE5);
+  color: var(--color-success, #10B981);
+}
+
+/* ── Tabla scrolleable ── */
+.apm-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.apm-table-wrap .data-table tbody tr {
+  cursor: pointer;
+}
+
+.apm-row--selected {
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent) !important;
+}
+
+.apm-row--selected:hover {
+  background: color-mix(in srgb, var(--color-accent) 9%, transparent) !important;
+}
+
+.apm-nombre {
+  font-weight: 500;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Columna "venta nueva" */
+.apm-col-nuevo {
+  min-width: 120px;
+}
+
+/* Precio nuevo destacado */
+.apm-precio-nuevo {
+  font-weight: 600;
+  color: var(--color-accent);
+  font-size: 12px;
+}
+
+/* Cambio costo: old → new */
+.apm-cambio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.apm-old {
+  color: var(--color-text-tertiary);
+  text-decoration: line-through;
+}
+
+.apm-new-costo {
+  font-weight: 500;
+  color: var(--color-warning, #F59E0B);
+}
+
+.apm-cambio .ti {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+/* ── Footer ── */
+.apm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 0.5px solid var(--color-border);
+  flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.apm-footer-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.apm-footer-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.apm-sel-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.apm-sel-count .ti {
+  font-size: 12px;
+}
+
+.apm-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-danger, #EF4444);
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .apm-modal {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+  }
+
+  .apm-modos {
+    flex-direction: column;
+  }
+
+  .apm-pct-label {
+    min-width: unset;
+  }
+}

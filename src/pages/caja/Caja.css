@@ -284,6 +284,42 @@
   gap: 4px;
 }
 
+/* versión clickeable */
+.caja-historial-item--btn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-family-base);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast),
+              transform var(--transition-fast);
+}
+
+.caja-historial-item--btn:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.1);
+  transform: translateY(-1px);
+}
+
+.caja-hist-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  opacity: 0;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.caja-historial-item--btn:hover .caja-hist-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.caja-hist-row--total {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  margin-top: 2px;
+}
+
 .caja-hist-fecha {
   font-size: 11px;
   font-weight: 500;
@@ -311,6 +347,44 @@
 
 .caja-hist-diferencia.pos { color: var(--color-success-700); }
 .caja-hist-diferencia.neg { color: var(--color-danger-600); }
+
+/* ── Centros de costos en historial ── */
+.caja-hist-cc {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 0.5px dashed var(--color-border-tertiary);
+}
+
+.caja-hist-cc-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.caja-hist-cc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.caja-hist-cc-nombre {
+  flex: 1;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.caja-hist-cc-total {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
 
 /* ── PRINT ── */
 @media print {

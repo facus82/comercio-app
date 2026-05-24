@@ -5,6 +5,16 @@ import { useAuth } from '../../hooks/useAuth'
 import PagoCompraModal from './PagoCompraModal'
 import './Dashboard.css'
 
+/* ── Medios de pago ──────────────────────── */
+const MEDIOS_MAP = {
+  efectivo:         { label: 'Efectivo',      icon: 'ti-cash'            },
+  tarjeta_debito:   { label: 'Débito',        icon: 'ti-credit-card'     },
+  tarjeta_credito:  { label: 'Crédito',       icon: 'ti-credit-card'     },
+  transferencia:    { label: 'Transferencia', icon: 'ti-building-bank'   },
+  mercado_pago:     { label: 'Mercado Pago',  icon: 'ti-brand-mastercard'},
+  cuenta_corriente: { label: 'Cta. Cte.',     icon: 'ti-file-invoice'    },
+}
+
 /* ── Helpers ─────────────────────────────── */
 const fmt$ = v =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
@@ -140,6 +150,58 @@ function useVentasPeriodo(comercioId, periodo) {
   return { total, loadingVentas }
 }
 
+/* ── Hook: ventas por centro de costo (mismo período) ── */
+function useVentasPorCC(comercioId, periodo, centrosCostos) {
+  const [porCC,     setPorCC]     = useState([])
+  const [allItems,  setAllItems]  = useState([])   // raw con venta_id — para detalle sin re-fetch
+  const [loadingCC, setLoadingCC] = useState(true)
+
+  // Clave estable basada en los ids para no disparar loops
+  const ccKey = centrosCostos.map(c => c.id).join(',')
+
+  useEffect(() => {
+    if (!comercioId || centrosCostos.length === 0) {
+      setPorCC([])
+      setAllItems([])
+      setLoadingCC(false)
+      return
+    }
+    let cancelado = false
+
+    async function cargar() {
+      setLoadingCC(true)
+      const inicio = new Date(periodo.year, periodo.month, 1)
+      const fin    = new Date(periodo.year, periodo.month + 1, 0, 23, 59, 59)
+
+      const { data } = await supabase
+        .from('venta_items')
+        .select('venta_id, subtotal, producto:productos(centro_costo_id), venta:ventas!inner(comercio_id, estado, fecha)')
+        .eq('venta.comercio_id', comercioId)
+        .eq('venta.estado', 'completada')
+        .gte('venta.fecha', inicio.toISOString())
+        .lte('venta.fecha', fin.toISOString())
+
+      if (!cancelado) {
+        const items = data || []
+        const resultado = centrosCostos.map(cc => {
+          const itemsCC = items.filter(i => i.producto?.centro_costo_id === cc.id)
+          const total   = itemsCC.reduce((s, i) => s + Number(i.subtotal), 0)
+          return { ...cc, total }
+        })
+        setPorCC(resultado)
+        setAllItems(items)
+        setLoadingCC(false)
+      }
+    }
+
+    cargar()
+    return () => { cancelado = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comercioId, periodo.year, periodo.month, ccKey])
+
+  return { porCC, allItems, loadingCC }
+}
+
 /* ── Componente principal ────────────────── */
 const HOY = new Date()
 
@@ -153,6 +215,61 @@ export default function Dashboard() {
   /* Período de ventas */
   const [periodo, setPeriodo] = useState({ year: HOY.getFullYear(), month: HOY.getMonth() })
   const { total: ventasPeriodo, loadingVentas } = useVentasPeriodo(comercioId, periodo)
+  const { porCC, allItems, loadingCC } = useVentasPorCC(comercioId, periodo, datos.centrosCostos)
+
+  /* Detalle por CC (medios de pago) */
+  const [ccSel,     setCCSel]     = useState(null)   // { id, nombre, color, total }
+  const [ccDetalle, setCCDetalle] = useState(null)   // { loading, porMedio, cantVentas }
+
+  // Limpiar selección al cambiar período
+  useEffect(() => { setCCSel(null) }, [periodo.year, periodo.month])
+
+  // Cargar medios de pago del CC seleccionado
+  useEffect(() => {
+    if (!ccSel) { setCCDetalle(null); return }
+    let cancelado = false
+    setCCDetalle({ loading: true, porMedio: [], cantVentas: 0 })
+
+    async function cargarDetalle() {
+      // Usar los items ya cacheados — solo buscar venta_pagos
+      const ventaIds = [...new Set(
+        allItems
+          .filter(i => i.producto?.centro_costo_id === ccSel.id)
+          .map(i => i.venta_id)
+      )]
+
+      if (ventaIds.length === 0) {
+        if (!cancelado) setCCDetalle({ loading: false, porMedio: [], cantVentas: 0 })
+        return
+      }
+
+      const { data: pagos } = await supabase
+        .from('venta_pagos')
+        .select('medio_pago, monto')
+        .in('venta_id', ventaIds)
+
+      if (!cancelado) {
+        const mpMap = {}
+        ;(pagos || []).forEach(p => {
+          mpMap[p.medio_pago] = (mpMap[p.medio_pago] || 0) + Number(p.monto)
+        })
+        const totalPagado = Object.values(mpMap).reduce((s, v) => s + v, 0)
+        const porMedio = Object.entries(mpMap)
+          .map(([medio, monto]) => ({
+            medio,
+            monto,
+            pct: totalPagado > 0 ? Math.round((monto / totalPagado) * 100) : 0,
+          }))
+          .sort((a, b) => b.monto - a.monto)
+        setCCDetalle({ loading: false, porMedio, cantVentas: ventaIds.length })
+      }
+    }
+
+    cargarDetalle()
+    return () => { cancelado = true }
+  // allItems tiene ref estable mientras no cambie el período
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ccSel?.id, allItems])
 
   const esMesActual = periodo.year === HOY.getFullYear() && periodo.month === HOY.getMonth()
 
@@ -353,29 +470,99 @@ export default function Dashboard() {
             <i className="ti ti-chart-bar dash-card-icon" />
             <span>Ventas del mes por sección</span>
           </div>
-          {loading ? (
+          {loading || loadingCC ? (
             <p className="dash-empty">Cargando...</p>
           ) : datos.centrosCostos.length === 0 ? (
             <p className="dash-empty">Sin centros de costo configurados</p>
           ) : (
             <div className="cc-bars">
-              {datos.centrosCostos.map(cc => (
-                <div key={cc.id} className="cc-row">
-                  <div className="cc-row-header">
-                    <span className="cc-nombre">{cc.nombre}</span>
-                    <span className="cc-valor">$0</span>
-                  </div>
-                  <div className="cc-track">
-                    <div
-                      className="cc-fill"
-                      style={{ width: '0%', background: cc.color || 'var(--color-accent)' }}
-                    />
-                  </div>
-                </div>
-              ))}
-              <p className="dash-empty" style={{ marginTop: 'var(--space-3)' }}>
-                Los datos se mostrarán al registrar ventas
-              </p>
+              {(() => {
+                const maxVal   = Math.max(...porCC.map(cc => cc.total), 1)
+                const sinDatos = porCC.every(cc => cc.total === 0)
+                return (
+                  <>
+                    {porCC.map(cc => {
+                      const isOpen = ccSel?.id === cc.id
+                      return (
+                        <div key={cc.id} className="cc-item">
+                          {/* ── Fila principal (clickeable) ── */}
+                          <button
+                            type="button"
+                            className={`cc-row-btn${isOpen ? ' cc-row-btn--open' : ''}`}
+                            onClick={() => setCCSel(prev => prev?.id === cc.id ? null : cc)}
+                            title={`Ver detalle de ${cc.nombre}`}
+                          >
+                            <div className="cc-row-header">
+                              <span className="cc-nombre">{cc.nombre}</span>
+                              <span className="cc-row-right">
+                                <span className="cc-valor">{fmt$(cc.total)}</span>
+                                <i className={`ti ti-chevron-${isOpen ? 'up' : 'down'} cc-chevron`} />
+                              </span>
+                            </div>
+                            <div className="cc-track">
+                              <div
+                                className="cc-fill"
+                                style={{
+                                  width:      `${(cc.total / maxVal) * 100}%`,
+                                  background: cc.color || 'var(--color-accent)',
+                                }}
+                              />
+                            </div>
+                          </button>
+
+                          {/* ── Detalle expandible ── */}
+                          {isOpen && (
+                            <div className="cc-detalle">
+                              {ccDetalle?.loading ? (
+                                <p className="cc-detalle-loading">
+                                  <i className="ti ti-loader-2 spin" /> Cargando...
+                                </p>
+                              ) : !ccDetalle || ccDetalle.cantVentas === 0 ? (
+                                <p className="cc-detalle-loading">Sin ventas en este período</p>
+                              ) : (
+                                <>
+                                  <p className="cc-detalle-cant">
+                                    <i className="ti ti-receipt" />
+                                    {ccDetalle.cantVentas} venta{ccDetalle.cantVentas !== 1 ? 's' : ''} en el período
+                                  </p>
+                                  <div className="cc-mp-list">
+                                    {ccDetalle.porMedio.map(mp => {
+                                      const info = MEDIOS_MAP[mp.medio] || { label: mp.medio, icon: 'ti-wallet' }
+                                      return (
+                                        <div key={mp.medio} className="cc-mp-row">
+                                          <i className={`ti ${info.icon} cc-mp-icon`}
+                                             style={{ color: cc.color || 'var(--color-accent)' }} />
+                                          <span className="cc-mp-label">{info.label}</span>
+                                          <div className="cc-mp-track">
+                                            <div
+                                              className="cc-mp-fill"
+                                              style={{
+                                                width:      `${mp.pct}%`,
+                                                background: cc.color || 'var(--color-accent)',
+                                              }}
+                                            />
+                                          </div>
+                                          <span className="cc-mp-monto">{fmt$(mp.monto)}</span>
+                                          <span className="cc-mp-pct">{mp.pct}%</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {sinDatos && (
+                      <p className="dash-empty" style={{ marginTop: 'var(--space-3)' }}>
+                        Sin ventas en este período
+                      </p>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>

@@ -14,7 +14,7 @@ export function useCaja(comercioId, perfilId) {
   async function cargar() {
     setLoading(true)
 
-    const [resActual, resHistorial] = await Promise.all([
+    const [resActual, resHistorial, resCCs] = await Promise.all([
       supabase
         .from('cierres_caja')
         .select('*')
@@ -29,11 +29,49 @@ export function useCaja(comercioId, perfilId) {
         .eq('comercio_id', comercioId)
         .eq('estado', 'cerrada')
         .order('fecha_cierre', { ascending: false })
-        .limit(10),
+        .limit(4),
+      supabase
+        .from('centros_costos')
+        .select('id, nombre, color')
+        .eq('comercio_id', comercioId)
+        .eq('activo', true)
+        .order('nombre'),
     ])
 
     setCajaActual(resActual.data || null)
-    setHistorial(resHistorial.data || [])
+
+    const cierres = resHistorial.data || []
+    const ccs     = resCCs.data || []
+
+    // Para cada cierre traer el desglose por CC (una sola query cubre todos)
+    let cierresConCC = cierres
+    if (cierres.length > 0 && ccs.length > 0) {
+      const oldest = cierres[cierres.length - 1]
+      const { data: items } = await supabase
+        .from('venta_items')
+        .select('subtotal, producto:productos(centro_costo_id), venta:ventas!inner(comercio_id, estado, fecha)')
+        .eq('venta.comercio_id', comercioId)
+        .eq('venta.estado', 'completada')
+        .gte('venta.fecha', oldest.fecha_apertura)
+
+      const allItems = items || []
+
+      cierresConCC = cierres.map(c => {
+        const itemsDeCierre = allItems.filter(i => {
+          const f = new Date(i.venta.fecha)
+          return f >= new Date(c.fecha_apertura) && f <= new Date(c.fecha_cierre)
+        })
+        const porCC = ccs
+          .map(cc => {
+            const ccItems = itemsDeCierre.filter(i => i.producto?.centro_costo_id === cc.id)
+            return { ...cc, total: ccItems.reduce((s, i) => s + Number(i.subtotal), 0) }
+          })
+          .filter(cc => cc.total > 0)
+        return { ...c, porCC }
+      })
+    }
+
+    setHistorial(cierresConCC)
     setLoading(false)
   }
 

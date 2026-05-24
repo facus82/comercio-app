@@ -22,30 +22,66 @@
   margin-bottom: var(--space-8);
 }
 
-.login-logo {
-  width: 56px;
-  height: 56px;
-  background: var(--color-accent);
-  border-radius: var(--radius-lg);
+/* ── GestCom logo ── */
+.gestcom-icon-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.gestcom-icon {
+  width: 48px;
+  height: 48px;
+  background: #6366F1;
+  border-radius: 12px;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto var(--space-4);
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: #fff;
+  margin: 0 auto 12px;
+  flex-shrink: 0;
 }
 
-.login-header h1 {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-  margin: 0 0 var(--space-2);
+/* Three white horizontal lines */
+.gestcom-lines {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 1px;
+  /* top line via negative box-shadow, bottom via positive */
+  box-shadow: 0 -6px 0 #ffffff, 0 6px 0 #ffffff;
 }
 
-.login-header p {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+/* Red accent circle bottom-right */
+.gestcom-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #E11D48;
+  border-radius: 50%;
+  bottom: 6px;
+  right: 6px;
+  border: 1.5px solid #6366F1;
+}
+
+.gestcom-name {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 5px;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+.gestcom-gest { color: #0F172A; }
+.gestcom-com  { color: #E11D48; }
+
+.gestcom-sub {
+  font-size: 11px;
+  color: #94A3B8;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
   margin: 0;
 }
 

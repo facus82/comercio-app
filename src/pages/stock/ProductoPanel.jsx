@@ -45,8 +45,10 @@ function toForm(p) {
 function initCalc(producto) {
   if (!producto) return { compra: '', flete: '', margen: 30 }
   const costo = Number(producto.precio_costo) || 0
-  const venta = Number(producto.precio_venta) || 0
-  const margen = costo > 0 ? Math.round(((venta / costo) - 1) * 100) : 30
+  const venta = Number(producto.precio_venta) || 0          // ya incluye IVA
+  const iva   = Number(producto.iva_porcentaje) || 0
+  const neto  = iva > 0 ? venta / (1 + iva / 100) : venta  // extraer neto para calcular margen real
+  const margen = costo > 0 ? Math.round(((neto / costo) - 1) * 100) : 30
   return { compra: costo || '', flete: '', margen: Math.max(0, margen) }
 }
 
@@ -89,10 +91,19 @@ export default function ProductoPanel({
     [calc.compra, calc.flete]
   )
 
-  const sugerido = useMemo(() =>
-    costoBase > 0 ? +(costoBase * (1 + (Number(calc.margen) || 0) / 100)).toFixed(2) : 0,
-    [costoBase, calc.margen]
-  )
+  // Precio sugerido = costo × (1 + margen%) × (1 + IVA%)  → precio FINAL con IVA
+  const sugerido = useMemo(() => {
+    if (costoBase <= 0) return 0
+    const neto = costoBase * (1 + (Number(calc.margen) || 0) / 100)
+    const iva  = Number(form.iva_porcentaje) || 0
+    return +(neto * (1 + iva / 100)).toFixed(2)
+  }, [costoBase, calc.margen, form.iva_porcentaje])
+
+  // Desglose del precio de venta cargado manualmente
+  const ventaConIva = Number(form.precio_venta) || 0
+  const ivaPorc     = Number(form.iva_porcentaje) || 0
+  const ventaNeto   = ivaPorc > 0 ? +(ventaConIva / (1 + ivaPorc / 100)).toFixed(2) : ventaConIva
+  const ventaIvaAmt = +(ventaConIva - ventaNeto).toFixed(2)
 
   // Sincronizar precio_costo con costoBase cuando cambia la calculadora
   useEffect(() => {
@@ -270,17 +281,31 @@ export default function ProductoPanel({
             </div>
 
             {/* Margen */}
-            <div className="field" style={{ maxWidth: 160 }}>
-              <label className="field-label">Margen de ganancia %</label>
-              <input className="field-input" type="number" min="0" step="1" placeholder="30"
-                value={calc.margen}
-                onChange={e => setC('margen', e.target.value)} />
+            <div className="form-grid" style={{ alignItems: 'flex-end' }}>
+              <div className="field" style={{ maxWidth: 160 }}>
+                <label className="field-label">Margen de ganancia %</label>
+                <input className="field-input" type="number" min="0" step="1" placeholder="30"
+                  value={calc.margen}
+                  onChange={e => setC('margen', e.target.value)} />
+              </div>
+
+              {/* IVA — va antes del sugerido para que afecte el cálculo */}
+              <div className="field" style={{ maxWidth: 140 }}>
+                <label className="field-label">IVA %</label>
+                <select className="field-select" value={form.iva_porcentaje}
+                  onChange={e => setF('iva_porcentaje', e.target.value)}>
+                  {IVA_OPTS.map(v => <option key={v} value={v}>{v}%</option>)}
+                </select>
+              </div>
             </div>
 
-            {/* Precio sugerido */}
+            {/* Precio sugerido (ya incluye IVA) */}
             <div className="calc-row calc-row--sugerido">
               <div>
-                <span className="calc-label">Precio sugerido</span>
+                <span className="calc-label">
+                  Precio sugerido
+                  <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>(c/IVA)</span>
+                </span>
                 <span className="calc-value calc-value--sugerido">{fmt$(sugerido)}</span>
               </div>
               {precioManual && sugerido > 0 && (
@@ -291,10 +316,10 @@ export default function ProductoPanel({
               )}
             </div>
 
-            {/* Precio de venta editable */}
+            {/* Precio de venta editable — se guarda CON IVA */}
             <div className="field">
               <label className="field-label">
-                Precio de venta $ *
+                Precio de venta (c/IVA) $ *
                 {!precioManual && sugerido > 0 && (
                   <span style={{ color: 'var(--color-text-tertiary)', marginLeft: 6, textTransform: 'none' }}>
                     (sincronizado con sugerido)
@@ -305,15 +330,16 @@ export default function ProductoPanel({
                 placeholder="0"
                 value={form.precio_venta}
                 onChange={e => { setF('precio_venta', e.target.value); setPrecioManual(true) }} />
-            </div>
-
-            {/* IVA */}
-            <div className="field" style={{ maxWidth: 140 }}>
-              <label className="field-label">IVA %</label>
-              <select className="field-select" value={form.iva_porcentaje}
-                onChange={e => setF('iva_porcentaje', e.target.value)}>
-                {IVA_OPTS.map(v => <option key={v} value={v}>{v}%</option>)}
-              </select>
+              {/* Desglose neto + IVA */}
+              {ventaConIva > 0 && ivaPorc > 0 && (
+                <div className="precio-desglose">
+                  <span>Neto: {fmt$(ventaNeto)}</span>
+                  <span className="precio-desglose-sep">+</span>
+                  <span>IVA {ivaPorc}%: {fmt$(ventaIvaAmt)}</span>
+                  <span className="precio-desglose-sep">=</span>
+                  <span className="precio-desglose-total">Final: {fmt$(ventaConIva)}</span>
+                </div>
+              )}
             </div>
 
             {/* Toggle promoción */}
@@ -325,7 +351,7 @@ export default function ProductoPanel({
               </label>
               {enPromo && (
                 <div className="field" style={{ marginTop: 8 }}>
-                  <label className="field-label">Precio promocional $</label>
+                  <label className="field-label">Precio promocional (c/IVA) $</label>
                   <input className="field-input field-input--promo" type="number" min="0" step="0.01"
                     placeholder="0" value={form.precio_mayorista}
                     onChange={e => setF('precio_mayorista', e.target.value)} />

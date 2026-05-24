@@ -124,6 +124,52 @@ export function useProductos(comercioId, perfilId) {
     return { data }
   }
 
+  /**
+   * Actualiza precio_costo y precio_venta de varios productos a la vez.
+   * actualizaciones: [{ id, precio_costo, precio_venta, precio_mayorista }]
+   */
+  async function actualizarMasivo(actualizaciones) {
+    // Actualizar en BD en paralelo
+    const resultados = await Promise.all(
+      actualizaciones.map(({ id, precio_costo, precio_venta, precio_mayorista }) =>
+        supabase
+          .from('productos')
+          .update({ precio_costo, precio_venta, precio_mayorista: precio_mayorista ?? null })
+          .eq('id', id)
+          .select('*, categoria:categorias(nombre, color)')
+          .single()
+      )
+    )
+
+    const conError = resultados.filter(r => r.error)
+    if (conError.length > 0) {
+      return { error: `${conError.length} producto(s) no se pudieron actualizar.` }
+    }
+
+    // Registrar historial en lote
+    await supabase.from('precio_historial').insert(
+      actualizaciones.map(a => ({
+        producto_id:     a.id,
+        precio_costo:    a.precio_costo,
+        precio_venta:    a.precio_venta,
+        precio_mayorista: a.precio_mayorista || null,
+        motivo:          'Actualización masiva',
+        usuario_id:      perfilId,
+      }))
+    )
+
+    // Actualizar estado local de una sola vez
+    const actualizados = resultados.map(r => r.data)
+    setProductos(prev =>
+      prev.map(p => {
+        const act = actualizados.find(d => d.id === p.id)
+        return act ?? p
+      })
+    )
+
+    return { data: actualizados }
+  }
+
   async function toggleActivo(id, nuevoEstado) {
     const { error } = await supabase
       .from('productos')
@@ -144,6 +190,7 @@ export function useProductos(comercioId, perfilId) {
     error,
     crear,
     actualizar,
+    actualizarMasivo,
     toggleActivo,
     recargar: cargarTodo,
   }

@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
+import * as XLSX from 'xlsx'
 import './Ventas.css'
 
 const fmt$ = v =>
@@ -14,67 +15,77 @@ const fmtFechaHora = str => {
 }
 
 function comprobantesSegunFiscal(condicion) {
-  if (condicion === 'Monotributista' || condicion === 'Exento') return ['C']
-  if (condicion === 'Responsable Inscripto') return ['A', 'B']
-  return ['B'] // Consumidor Final u otros
+  if (condicion === 'Monotributista' || condicion === 'Exento') return ['C', 'R']
+  if (condicion === 'Responsable Inscripto') return ['A', 'B', 'R']
+  return ['B', 'R']
 }
 
+const COMP_LABEL = { A: 'Factura A', B: 'Factura B', C: 'Factura C', R: 'Remito' }
+const COMP_ICON  = { A: 'ti-file-invoice', B: 'ti-file-invoice', C: 'ti-file-invoice', R: 'ti-truck-delivery' }
+
 const MEDIOS_PAGO = [
-  { value: 'efectivo',         label: 'Efectivo'      },
-  { value: 'tarjeta_debito',   label: 'Débito'        },
-  { value: 'tarjeta_credito',  label: 'Crédito'       },
-  { value: 'transferencia',    label: 'Transferencia' },
-  { value: 'mercado_pago',     label: 'Mercado Pago'  },
-  { value: 'cuenta_corriente', label: 'Cta. Cte.'     },
+  { value: 'efectivo',         label: 'Efectivo',       icon: 'ti-cash'            },
+  { value: 'tarjeta_debito',   label: 'Débito',         icon: 'ti-credit-card'     },
+  { value: 'tarjeta_credito',  label: 'Crédito',        icon: 'ti-credit-card'     },
+  { value: 'transferencia',    label: 'Transferencia',  icon: 'ti-building-bank'   },
+  { value: 'mercado_pago',     label: 'Mercado Pago',   icon: 'ti-currency-dollar' },
+  { value: 'cuenta_corriente', label: 'Cta. Cte.',      icon: 'ti-notebook'        },
 ]
 
 const ESTADO_BADGE = { completada: 'badge--success', anulada: 'badge--danger', pendiente: 'badge--warning' }
 
 export default function Ventas() {
   const { perfil } = useAuth()
-  const comercioId = perfil?.comercio?.id
-  const descuentoEfectivoPct = Number(perfil?.comercio?.descuento_efectivo_pct || 0)
+  const comercioId            = perfil?.comercio?.id
+  const descuentoEfectivoPct  = Number(perfil?.comercio?.descuento_efectivo_pct || 0)
   const comprobantesDisponibles = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
 
   const { ventas, loading: loadingVentas, crear, anular } = useVentas(comercioId, perfil?.id)
 
-  const [vista, setVista] = useState('lista') // 'lista' | 'pos'
+  const [vista, setVista] = useState('lista')
 
-  // ── Catálogo ──
+  /* ── Catálogo ── */
   const [productos,     setProductos]     = useState([])
-  const [centrosCostos, setCentrosCostos] = useState([])
+  const [clientes,      setClientes]      = useState([])
   const [cargandoProds, setCargandoProds] = useState(false)
 
-  // ── Filtros de grilla ──
-  const [busqProd,   setBusqProd]   = useState('')
-  const [filtroCCId, setFiltroCCId] = useState(null)
+  /* ── Buscador POS ── */
+  const [busqProd,     setBusqProd]     = useState('')
+  const [showDrop,     setShowDrop]     = useState(false)
+  const [noEncontrado, setNoEncontrado] = useState(false)
   const busqRef = useRef(null)
+  const dropRef = useRef(null)
 
-  // ── Carrito ──
+  /* ── Ítem libre ── */
+  const [showItemLibre, setShowItemLibre] = useState(false)
+  const [libreDesc,     setLibreDesc]     = useState('')
+  const [librePrice,    setLibrePrice]    = useState('')
+  const libreDescRef = useRef(null)
+
+  /* ── Carrito ── */
   const [carrito, setCarrito] = useState([])
 
-  // ── Panel de cobro ──
+  /* ── Panel de cobro ── */
   const [comprobante,         setComprobante]         = useState('B')
   const [busqCliente,         setBusqCliente]         = useState('')
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
-  const [clienteResultados,   setClienteResultados]   = useState([])
   const [dropClienteAbierto,  setDropClienteAbierto]  = useState(false)
-  const busqClienteTimer = useRef(null)
+  const clienteInputRef = useRef(null)
   const [pagos,  setPagos]  = useState([{ _key: '1', medio_pago: 'efectivo', monto: '' }])
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
-  // ── Filtros lista ──
+  /* ── Filtros lista ── */
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState(null)
 
-  // ── Sincronizar comprobante cuando llega condicion_iva del servidor ──
+  /* Sincronizar comprobante con condicion_iva */
   useEffect(() => {
-    const opciones = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
-    setComprobante(prev => opciones.includes(prev) ? prev : opciones[0])
+    const opts = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
+    setComprobante(prev => opts.includes(prev) ? prev : opts[0])
   }, [perfil?.comercio?.condicion_iva])
 
-  // ── Cargar catálogo al abrir el POS ──
+  /* Cargar catálogo al abrir POS */
   useEffect(() => {
     if (!comercioId || vista !== 'pos') return
     cargarCatalogo()
@@ -82,7 +93,7 @@ export default function Ventas() {
 
   async function cargarCatalogo() {
     setCargandoProds(true)
-    const [{ data: prods }, { data: ccs }] = await Promise.all([
+    const [resProds, resClis] = await Promise.all([
       supabase
         .from('productos')
         .select('id, nombre, codigo_barras, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
@@ -90,42 +101,110 @@ export default function Ventas() {
         .eq('activo', true)
         .order('nombre'),
       supabase
-        .from('centros_costos')
-        .select('id, nombre, color')
+        .from('clientes')
+        .select('id, nombre, apellido, cuit')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
     ])
-    setProductos(prods || [])
-    setCentrosCostos(ccs || [])
+    if (resClis.error) console.error('Error cargando clientes:', resClis.error)
+    setProductos(resProds.data || [])
+    setClientes(resClis.data || [])
     setCargandoProds(false)
     setTimeout(() => busqRef.current?.focus(), 100)
   }
 
-  // ── Productos filtrados ──
-  const productosFiltrados = useMemo(() => {
-    let list = productos
-    if (filtroCCId) list = list.filter(p => p.centro_costo?.id === filtroCCId)
-    if (busqProd.trim()) {
-      const q = busqProd.toLowerCase()
-      list = list.filter(p =>
+  /* ── Dropdown de búsqueda (máx 6) ── */
+  const dropdownResultados = useMemo(() => {
+    const q = busqProd.trim().toLowerCase()
+    if (!q) return []
+    return productos
+      .filter(p =>
         p.nombre.toLowerCase().includes(q) ||
         (p.codigo_barras || '').toLowerCase().includes(q)
       )
-    }
-    return list
-  }, [productos, filtroCCId, busqProd])
+      .slice(0, 6)
+  }, [productos, busqProd])
 
-  // ── Carrito ──
-  function agregarAlCarrito(prod) {
+  /* Cerrar dropdown al hacer clic afuera */
+  useEffect(() => {
+    function onClickOut(e) {
+      if (dropRef.current && !dropRef.current.contains(e.target)) setShowDrop(false)
+    }
+    document.addEventListener('mousedown', onClickOut)
+    return () => document.removeEventListener('mousedown', onClickOut)
+  }, [])
+
+  /* ── Handlers del buscador ── */
+  function onBusqChange(e) {
+    const v = e.target.value
+    setBusqProd(v)
+    setNoEncontrado(false)
+    setShowDrop(v.trim().length > 0)
+  }
+
+  function handleBusqKeyDown(e) {
+    if (e.key === 'Escape') {
+      setBusqProd(''); setShowDrop(false); setNoEncontrado(false)
+      return
+    }
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const q = busqProd.trim()
+    if (!q) return
+
+    // Prioridad 1: código de barras exacto
+    const exacto = productos.find(p => p.codigo_barras === q)
+    if (exacto) { agregarAlCarrito(exacto); return }
+
+    // Prioridad 2: primer resultado del dropdown
+    if (dropdownResultados.length > 0) {
+      agregarAlCarrito(dropdownResultados[0])
+    } else {
+      setNoEncontrado(true)
+      setShowDrop(false)
+    }
+  }
+
+  /* ── Ítem libre ── */
+  function abrirItemLibre() {
+    setShowItemLibre(true)
+    setTimeout(() => libreDescRef.current?.focus(), 60)
+  }
+
+  function agregarItemLibre(e) {
+    e?.preventDefault()
+    const desc  = libreDesc.trim()
+    const price = parseFloat(librePrice.replace(',', '.'))
+    if (!desc || isNaN(price) || price <= 0) return
+    setCarrito(prev => [
+      ...prev,
+      { _key: Math.random().toString(36).slice(2), esLibre: true, descripcion: desc, precioFinal: price, cantidad: 1 },
+    ])
+    setLibreDesc(''); setLibrePrice(''); setShowItemLibre(false)
+    setTimeout(() => busqRef.current?.focus(), 0)
+  }
+
+  function cancelarItemLibre() {
+    setLibreDesc(''); setLibrePrice(''); setShowItemLibre(false)
+    setTimeout(() => busqRef.current?.focus(), 0)
+  }
+
+  /* ── Carrito ── */
+  const agregarAlCarrito = useCallback((prod) => {
+    const esPromo     = Number(prod.precio_mayorista) > 0 && Number(prod.precio_mayorista) < Number(prod.precio_venta)
+    const precioFinal = esPromo ? Number(prod.precio_mayorista) : Number(prod.precio_venta)
+
     setCarrito(prev => {
       const idx = prev.findIndex(it => it.producto.id === prod.id)
       if (idx >= 0) return prev.map((it, i) => i === idx ? { ...it, cantidad: it.cantidad + 1 } : it)
-      return [...prev, { _key: Math.random().toString(36).slice(2), producto: prod, cantidad: 1 }]
+      return [...prev, { _key: Math.random().toString(36).slice(2), producto: prod, cantidad: 1, precioFinal, esPromo }]
     })
     setBusqProd('')
-    busqRef.current?.focus()
-  }
+    setShowDrop(false)
+    setNoEncontrado(false)
+    setTimeout(() => busqRef.current?.focus(), 0)
+  }, [])
 
   function quitarDelCarrito(key) {
     setCarrito(prev => prev.filter(it => it._key !== key))
@@ -137,45 +216,60 @@ export default function Ventas() {
     ))
   }
 
-  // ── Cliente ──
+  /* ── Carrito agrupado por CC ── */
+  const carritoAgrupado = useMemo(() => {
+    const map = new Map()
+    carrito.forEach(it => {
+      const ccId = it.producto.centro_costo?.id ?? '__sin_cc__'
+      if (!map.has(ccId)) map.set(ccId, { cc: it.producto.centro_costo || null, items: [] })
+      map.get(ccId).items.push(it)
+    })
+    return [...map.values()]
+  }, [carrito])
+
+  /* ── Cliente — filtrado client-side ── */
+  const clientesFiltrados = useMemo(() => {
+    const q = busqCliente.trim().toLowerCase()
+    if (!q) return clientes.slice(0, 8)   // muestra los primeros 8 al abrir
+    return clientes
+      .filter(c =>
+        `${c.nombre} ${c.apellido || ''}`.toLowerCase().includes(q) ||
+        (c.cuit || '').includes(q)
+      )
+      .slice(0, 8)
+  }, [clientes, busqCliente])
+
   function onBusqClienteChange(q) {
     setBusqCliente(q)
     setClienteSeleccionado(null)
-    clearTimeout(busqClienteTimer.current)
-    if (!q.trim()) { setClienteResultados([]); return }
-    busqClienteTimer.current = setTimeout(async () => {
-      const { data } = await supabase
-        .from('clientes')
-        .select('id, nombre, apellido, cuit')
-        .eq('comercio_id', comercioId)
-        .eq('activo', true)
-        .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,cuit.ilike.%${q}%`)
-        .limit(5)
-      setClienteResultados(data || [])
-      setDropClienteAbierto(true)
-    }, 280)
+    setDropClienteAbierto(true)
   }
 
   function seleccionarCliente(c) {
+    if (!c) {
+      // Consumidor Final
+      setClienteSeleccionado(null)
+      setBusqCliente('')
+      setDropClienteAbierto(false)
+      return
+    }
     setClienteSeleccionado(c)
     setBusqCliente(`${c.nombre} ${c.apellido || ''}`.trim())
-    setClienteResultados([])
     setDropClienteAbierto(false)
   }
 
-  // ── Pagos ──
+  /* ── Pagos ── */
   function actualizarPago(idx, campo, valor) {
     setPagos(prev => prev.map((p, i) => i !== idx ? p : { ...p, [campo]: valor }))
   }
 
   function agregarSegundoPago() {
     if (pagos.length >= 2) return
-    const total = totales.total
-    const m1 = Math.round(total / 2)
-    const m2 = total - m1
+    const ya    = Number(pagos[0].monto || 0)
+    const resto = Math.max(0, +(totales.total - ya).toFixed(2))
     setPagos(prev => [
-      { ...prev[0], monto: String(m1) },
-      { _key: Math.random().toString(36).slice(2), medio_pago: 'tarjeta_debito', monto: String(m2) },
+      prev[0],
+      { _key: Math.random().toString(36).slice(2), medio_pago: 'tarjeta_debito', monto: resto > 0 ? String(resto) : '' },
     ])
   }
 
@@ -186,97 +280,131 @@ export default function Ventas() {
     })
   }
 
-  // ── Totales ──
+  /* ── Totales ──
+     precio_venta ya viene CON IVA incluido → extraemos el IVA del precio
+     en lugar de sumarlo encima                                            */
   const totales = useMemo(() => {
     const hayEfectivo = pagos.some(p => p.medio_pago === 'efectivo')
     const descPct     = hayEfectivo && descuentoEfectivoPct > 0 ? descuentoEfectivoPct : 0
 
-    let subtotalNeto = 0, iva21 = 0, iva105 = 0
+    let totalBruto = 0, iva21 = 0, iva105 = 0
     carrito.forEach(it => {
-      const base = Number(it.producto.precio_venta) * it.cantidad
-      const pct  = Number(it.producto.iva_porcentaje)
-      subtotalNeto += base
-      if (pct === 21)   iva21  += base * 0.21
-      if (pct === 10.5) iva105 += base * 0.105
+      const bruto = it.precioFinal * it.cantidad           // precio con IVA × cantidad
+      const pct   = it.esLibre ? 0 : Number(it.producto.iva_porcentaje)
+      totalBruto += bruto
+      // Extraer IVA contenido en el precio: IVA = bruto - bruto / (1 + pct/100)
+      if (pct === 21)   iva21  += bruto - bruto / 1.21
+      if (pct === 10.5) iva105 += bruto - bruto / 1.105
     })
 
-    const descMonto    = +(subtotalNeto * descPct / 100).toFixed(2)
-    const total        = +(subtotalNeto + iva21 + iva105 - descMonto).toFixed(2)
+    const subtotalNeto = +(totalBruto - iva21 - iva105).toFixed(2)
+    const descMonto    = +(totalBruto * descPct / 100).toFixed(2)
+    const total        = +(totalBruto - descMonto).toFixed(2)
     const totalPagos   = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
-    const pagoCompleto = carrito.length > 0 && Math.abs(totalPagos - total) < 0.01
+    const diferencia   = +(totalPagos - total).toFixed(2)
+    const pagoCompleto = carrito.length > 0 && Math.abs(diferencia) < 0.01
 
-    return {
-      subtotalNeto: +subtotalNeto.toFixed(2),
-      iva21:        +iva21.toFixed(2),
-      iva105:       +iva105.toFixed(2),
-      descPct, descMonto, total, totalPagos, pagoCompleto,
-    }
+    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, total, totalPagos, diferencia, pagoCompleto }
   }, [carrito, pagos, descuentoEfectivoPct])
 
-  // ── CCs en carrito (para aviso 2 comprobantes) ──
+  /* ── CCs en carrito (aviso 2 comprobantes) ── */
   const ccDelCarrito = useMemo(() => {
     const map = new Map()
     carrito.forEach(it => {
+      if (it.esLibre) return
       const cc = it.producto.centro_costo
       if (!cc) return
       if (!map.has(cc.id)) map.set(cc.id, { cc, monto: 0 })
-      const base = Number(it.producto.precio_venta) * it.cantidad
-      const iva  = base * (Number(it.producto.iva_porcentaje) / 100)
-      map.get(cc.id).monto += base + iva
+      // precioFinal ya incluye IVA → sumar directo sin recalcular
+      map.get(cc.id).monto += it.precioFinal * it.cantidad
     })
     return [...map.values()]
   }, [carrito])
 
-  // ── Reset POS ──
+  /* ── Reset POS ── */
   function resetPos() {
     setCarrito([])
     setComprobante(comprobantesDisponibles[0])
-    setBusqCliente('')
-    setClienteSeleccionado(null)
-    setClienteResultados([])
+    setBusqCliente(''); setClienteSeleccionado(null); setDropClienteAbierto(false)
     setPagos([{ _key: '1', medio_pago: 'efectivo', monto: '' }])
-    setError('')
-    setBusqProd('')
-    setFiltroCCId(null)
+    setError(''); setBusqProd('')
+    setNoEncontrado(false); setShowDrop(false)
+    setShowItemLibre(false); setLibreDesc(''); setLibrePrice('')
   }
 
-  // ── Cobrar ──
+  /* ── Cobrar ── */
   async function handleCobrar() {
     if (!totales.pagoCompleto) return
     setSaving(true); setError('')
 
-    const itemsVenta = carrito.map(it => ({
-      producto_id:     it.producto.id,
-      descripcion:     it.producto.nombre,
-      cantidad:        it.cantidad,
-      precio_unitario: Number(it.producto.precio_venta),
-      descuento_pct:   0,
-      iva_porcentaje:  Number(it.producto.iva_porcentaje) || 0,
-      subtotal:        Number(it.producto.precio_venta) * it.cantidad,
-    }))
+    const itemsVenta = carrito.map(it => it.esLibre
+      ? {
+          producto_id: null, descripcion: it.descripcion,
+          cantidad: it.cantidad, precio_unitario: it.precioFinal,
+          descuento_pct: 0, iva_porcentaje: 0,
+          subtotal: it.precioFinal * it.cantidad,
+        }
+      : {
+          producto_id: it.producto.id, descripcion: it.producto.nombre,
+          cantidad: it.cantidad, precio_unitario: it.precioFinal,
+          descuento_pct: 0, iva_porcentaje: Number(it.producto.iva_porcentaje) || 0,
+          subtotal: it.precioFinal * it.cantidad,
+        }
+    )
 
-    const datosVenta = {
-      cliente_id:      clienteSeleccionado?.id || null,
-      canal:           'mostrador',
-      estado:          'completada',
-      subtotal:        totales.subtotalNeto,
-      descuento_monto: totales.descMonto,
-      recargo_monto:   0,
-      iva_monto:       totales.iva21 + totales.iva105,
-      total:           totales.total,
-    }
-
-    const pagosVenta = pagos
-      .filter(p => Number(p.monto) > 0)
-      .map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) }))
-
-    const res = await crear(datosVenta, itemsVenta, pagosVenta)
+    const res = await crear(
+      {
+        cliente_id:       clienteSeleccionado?.id || null,
+        tipo_comprobante: comprobante,
+        canal: 'mostrador', estado: 'completada',
+        subtotal: totales.subtotalNeto, descuento_monto: totales.descMonto,
+        recargo_monto: 0, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
+      },
+      itemsVenta,
+      pagos.filter(p => Number(p.monto) > 0).map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) }))
+    )
     setSaving(false)
     if (res.error) setError(res.error.message || 'Error al guardar.')
     else { resetPos(); setVista('lista') }
   }
 
-  // ── Lista filtrada ──
+  /* ── Exportar Excel ── */
+  function exportarExcel() {
+    const COMP = { A: 'Factura A', B: 'Factura B', C: 'Factura C', R: 'Remito' }
+
+    const filas = ventasFiltradas.map(v => ({
+      'Fecha':        fmtFechaHora(v.fecha),
+      'Número':       v.numero || '',
+      'Comprobante':  COMP[v.tipo_comprobante] || 'Factura B',
+      'Cliente':      v.cliente
+                        ? `${v.cliente.nombre} ${v.cliente.apellido || ''}`.trim()
+                        : 'Consumidor final',
+      'Medios de pago': (v.pagos || []).map(p => p.medio_pago.replace(/_/g, ' ')).join(' + '),
+      'Total':        Number(v.total),
+      'Estado':       v.estado,
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(filas)
+
+    // Ancho de columnas
+    ws['!cols'] = [
+      { wch: 18 }, // Fecha
+      { wch: 14 }, // Número
+      { wch: 12 }, // Comprobante
+      { wch: 26 }, // Cliente
+      { wch: 24 }, // Medios de pago
+      { wch: 12 }, // Total
+      { wch: 12 }, // Estado
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Ventas')
+
+    const fecha = new Date().toISOString().split('T')[0]
+    XLSX.writeFile(wb, `ventas_${fecha}.xlsx`)
+  }
+
+  /* ── Lista filtrada ── */
   const ventasFiltradas = useMemo(() => {
     const q = busqueda.toLowerCase()
     return ventas.filter(v => {
@@ -287,14 +415,16 @@ export default function Ventas() {
     })
   }, [ventas, busqueda, filtroEstado])
 
-  // ════════════════════════════════════════════════════════
-  // VISTA POS
-  // ════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════
+     VISTA POS
+  ════════════════════════════════════════════════════════ */
   if (vista === 'pos') {
+    const hayEfectivo = pagos.some(p => p.medio_pago === 'efectivo')
+
     return (
       <div className="pos-root">
 
-        {/* ── Columna izquierda 70% ── */}
+        {/* ════ COLUMNA IZQUIERDA 65% ════ */}
         <div className="pos-left">
 
           <div className="pos-left-header">
@@ -304,204 +434,306 @@ export default function Ventas() {
             <h1 className="page-title">Nueva venta</h1>
           </div>
 
-          {/* Buscador + pills CC */}
-          <div className="pos-catalog-bar">
-            <div className="search-box pos-busq">
-              <i className="ti ti-search" />
+          {/* ── Buscador POS ── */}
+          <div className="pos-search-wrap" ref={dropRef}>
+            <div className={`pos-search-box${noEncontrado ? ' pos-search-box--error' : ''}`}>
+              <i className={`ti ${cargandoProds ? 'ti-loader-2 pos-search-spin' : noEncontrado ? 'ti-alert-circle' : 'ti-barcode'}`} />
               <input
                 ref={busqRef}
                 autoFocus
-                placeholder="Buscar o escanear código..."
+                className="pos-search-input"
+                placeholder="Buscar producto o escanear código de barras..."
                 value={busqProd}
-                onChange={e => setBusqProd(e.target.value)}
+                onChange={onBusqChange}
+                onKeyDown={handleBusqKeyDown}
+                onFocus={() => busqProd.trim() && setShowDrop(true)}
+                autoComplete="off"
               />
               {busqProd && (
-                <button type="button" className="search-clear" onClick={() => { setBusqProd(''); busqRef.current?.focus() }}>
+                <button
+                  type="button"
+                  className="search-clear"
+                  onClick={() => { setBusqProd(''); setShowDrop(false); setNoEncontrado(false); busqRef.current?.focus() }}
+                >
                   <i className="ti ti-x" />
                 </button>
               )}
             </div>
-            <div className="pills">
-              <button
-                type="button"
-                className={`pill${filtroCCId === null ? ' pill--active' : ''}`}
-                onClick={() => setFiltroCCId(null)}
-              >
-                Todos
-              </button>
-              {centrosCostos.map(cc => (
-                <button
-                  key={cc.id}
-                  type="button"
-                  className={`pill${filtroCCId === cc.id ? ' pill--active' : ''}`}
-                  onClick={() => setFiltroCCId(filtroCCId === cc.id ? null : cc.id)}
-                  style={filtroCCId === cc.id ? { borderColor: cc.color, color: cc.color } : {}}
-                >
-                  {cc.nombre}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Grilla de productos */}
-          <div className="pos-grid">
-            {cargandoProds ? (
-              <div className="pos-grid-placeholder">
-                <i className="ti ti-loader-2" /> Cargando productos...
+            {/* Mensaje "no encontrado" */}
+            {noEncontrado && (
+              <div className="pos-no-encontrado">
+                <i className="ti ti-package-off" />
+                Producto no encontrado — revisá el código o el nombre
               </div>
-            ) : productosFiltrados.length === 0 ? (
-              <div className="pos-grid-placeholder">
-                <i className="ti ti-package-off" /> Sin resultados
-              </div>
-            ) : (
-              productosFiltrados.map(prod => {
-                const stockBajo = prod.controla_stock && Number(prod.stock_actual) < Number(prod.stock_minimo)
-                const esPromo   = Number(prod.precio_mayorista) > 0 && Number(prod.precio_mayorista) < Number(prod.precio_venta)
-                return (
-                  <button
-                    key={prod.id}
-                    type="button"
-                    className={`prod-card${stockBajo ? ' prod-card--stock-bajo' : ''}`}
-                    onClick={() => agregarAlCarrito(prod)}
-                  >
-                    <div className="prod-card-badges">
-                      {prod.centro_costo && (
-                        <span
-                          className="badge-cc"
-                          style={{ background: prod.centro_costo.color + '22', color: prod.centro_costo.color, borderColor: prod.centro_costo.color + '55' }}
-                        >
-                          {prod.centro_costo.nombre}
-                        </span>
-                      )}
-                      {esPromo && <span className="badge-promo">PROMO</span>}
-                    </div>
-                    <div className="prod-card-nombre">{prod.nombre}</div>
-                    {prod.categoria && <div className="prod-card-cat">{prod.categoria.nombre}</div>}
-                    <div className="prod-card-footer">
-                      <div className="prod-card-precios">
-                        {esPromo && <span className="prod-card-precio-old">{fmt$(prod.precio_venta)}</span>}
-                        <span className="prod-card-precio">{fmt$(esPromo ? prod.precio_mayorista : prod.precio_venta)}</span>
+            )}
+
+            {/* Dropdown de resultados */}
+            {showDrop && dropdownResultados.length > 0 && (
+              <div className="pos-dropdown">
+                {dropdownResultados.map(prod => {
+                  const esPromo = Number(prod.precio_mayorista) > 0 && Number(prod.precio_mayorista) < Number(prod.precio_venta)
+                  const sinStock = prod.controla_stock && Number(prod.stock_actual) <= 0
+                  return (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      className={`pos-dd-item${sinStock ? ' pos-dd-item--agotado' : ''}`}
+                      onMouseDown={() => agregarAlCarrito(prod)}
+                    >
+                      <div className="pos-dd-main">
+                        <span className="pos-dd-nombre">{prod.nombre}</span>
+                        <div className="pos-dd-meta">
+                          {prod.categoria && <span className="pos-dd-cat">{prod.categoria.nombre}</span>}
+                          {prod.centro_costo && (
+                            <span
+                              className="badge-cc badge-cc--sm"
+                              style={{ background: prod.centro_costo.color + '22', color: prod.centro_costo.color, borderColor: prod.centro_costo.color + '55' }}
+                            >
+                              {prod.centro_costo.nombre}
+                            </span>
+                          )}
+                          {sinStock && <span className="pos-dd-agotado">Sin stock</span>}
+                        </div>
                       </div>
-                      {prod.controla_stock && (
-                        <span className={`prod-card-stock${stockBajo ? ' prod-card-stock--bajo' : ''}`}>
-                          {prod.stock_actual} {prod.unidad_medida || 'u.'}
+                      <div className="pos-dd-right">
+                        {esPromo && <span className="pos-dd-precio-old">{fmt$(prod.precio_venta)}</span>}
+                        <span className={`pos-dd-precio${esPromo ? ' pos-dd-precio--promo' : ''}`}>
+                          {fmt$(esPromo ? prod.precio_mayorista : prod.precio_venta)}
                         </span>
-                      )}
-                    </div>
-                  </button>
-                )
-              })
+                        {prod.controla_stock && (
+                          <span className={`pos-dd-stock${Number(prod.stock_actual) <= Number(prod.stock_minimo) ? ' pos-dd-stock--bajo' : ''}`}>
+                            {prod.stock_actual} {prod.unidad_medida || 'u.'}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Form ítem libre */}
+            {showItemLibre && (
+              <form className="item-libre-form" onSubmit={agregarItemLibre}>
+                <input
+                  ref={libreDescRef}
+                  className="field-input item-libre-desc"
+                  placeholder="Descripción (ej: Servicio de entrega...)"
+                  value={libreDesc}
+                  onChange={e => setLibreDesc(e.target.value)}
+                  onKeyDown={e => e.key === 'Escape' && cancelarItemLibre()}
+                />
+                <input
+                  className="field-input item-libre-price"
+                  type="number" min="0.01" step="0.01"
+                  placeholder="Precio"
+                  value={librePrice}
+                  onChange={e => setLibrePrice(e.target.value)}
+                  onKeyDown={e => e.key === 'Escape' && cancelarItemLibre()}
+                />
+                <button type="submit" className="btn btn--primary" disabled={!libreDesc.trim() || !librePrice}>
+                  <i className="ti ti-plus" />
+                </button>
+                <button type="button" className="btn-icon" onClick={cancelarItemLibre}>
+                  <i className="ti ti-x" />
+                </button>
+              </form>
             )}
           </div>
 
-          {/* Carrito */}
-          {carrito.length > 0 && (
-            <div className="pos-carrito">
-              <p className="pos-carrito-title">
-                <i className="ti ti-shopping-cart" /> Carrito &mdash; {carrito.length} {carrito.length === 1 ? 'ítem' : 'ítems'}
-              </p>
-              <div className="pos-carrito-list">
-                {carrito.map(it => (
-                  <div key={it._key} className="carrito-item">
-                    <div className="carrito-item-info">
-                      {it.producto.centro_costo && (
-                        <span
-                          className="badge-cc badge-cc--sm"
-                          style={{ background: it.producto.centro_costo.color + '22', color: it.producto.centro_costo.color, borderColor: it.producto.centro_costo.color + '55' }}
-                        >
-                          {it.producto.centro_costo.nombre}
-                        </span>
-                      )}
-                      <span className="carrito-item-nombre">{it.producto.nombre}</span>
-                    </div>
-                    <div className="carrito-item-controles">
-                      <div className="qty-control">
-                        <button type="button" className="qty-btn" onClick={() => cambiarCantidad(it._key, -1)}>
-                          <i className="ti ti-minus" />
-                        </button>
-                        <span className="qty-val">{it.cantidad}</span>
-                        <button type="button" className="qty-btn" onClick={() => cambiarCantidad(it._key, 1)}>
-                          <i className="ti ti-plus" />
-                        </button>
-                      </div>
-                      <span className="carrito-item-unitario">{fmt$(it.producto.precio_venta)}</span>
-                      <span className="carrito-item-sub">{fmt$(Number(it.producto.precio_venta) * it.cantidad)}</span>
-                      <button type="button" className="btn-icon btn-icon--danger" onClick={() => quitarDelCarrito(it._key)}>
-                        <i className="ti ti-x" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+          {/* ── Carrito ── */}
+          <div className="pos-carrito">
+            {carrito.length === 0 ? (
+              <div className="carrito-vacio">
+                <i className="ti ti-scan" />
+                <span>Escaneá o buscá un producto para empezar</span>
+                <button type="button" className="btn carrito-vacio-btn" onClick={abrirItemLibre}>
+                  <i className="ti ti-pencil-plus" /> Agregar ítem libre
+                </button>
               </div>
-            </div>
-          )}
+            ) : (
+              <>
+                <div className="pos-carrito-title">
+                  <i className="ti ti-shopping-cart" />
+                  Carrito &mdash; {carrito.length} {carrito.length === 1 ? 'ítem' : 'ítems'}
+                  <button type="button" className="btn-item-libre-inline" onClick={abrirItemLibre} title="Agregar ítem libre">
+                    <i className="ti ti-pencil-plus" /> ítem libre
+                  </button>
+                </div>
+                <div className="pos-carrito-list">
+                  {carritoAgrupado.map((grupo, gIdx) => (
+                    <div key={grupo.cc?.id ?? '__sin_cc__'}>
+                      {/* Separador entre grupos CC */}
+                      {carritoAgrupado.length > 1 && (
+                        <div className="carrito-cc-sep">
+                          {grupo.cc ? (
+                            <>
+                              <span
+                                className="badge-cc"
+                                style={{ background: grupo.cc.color + '22', color: grupo.cc.color, borderColor: grupo.cc.color + '55' }}
+                              >
+                                {grupo.cc.nombre}
+                              </span>
+                              <div className="carrito-cc-sep-line" />
+                            </>
+                          ) : (
+                            <>
+                              <span className="badge badge--neutral">Sin sección</span>
+                              <div className="carrito-cc-sep-line" />
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {grupo.items.map(it => (
+                        <div key={it._key} className={`carrito-item${it.esLibre ? ' carrito-item--libre' : ''}`}>
+                          {it.esLibre ? (
+                            /* ── Ítem libre ── */
+                            <>
+                              <span className="carrito-item-libre-badge">
+                                <i className="ti ti-pencil" /> libre
+                              </span>
+                              <div className="carrito-item-info">
+                                <span className="carrito-item-nombre">{it.descripcion}</span>
+                              </div>
+                            </>
+                          ) : (
+                            /* ── Producto normal ── */
+                            <>
+                              {carritoAgrupado.length === 1 && it.producto.centro_costo && (
+                                <span
+                                  className="badge-cc badge-cc--sm carrito-item-cc"
+                                  style={{ background: it.producto.centro_costo.color + '22', color: it.producto.centro_costo.color, borderColor: it.producto.centro_costo.color + '55' }}
+                                >
+                                  {it.producto.centro_costo.nombre}
+                                </span>
+                              )}
+                              <div className="carrito-item-info">
+                                <span className="carrito-item-nombre">{it.producto.nombre}</span>
+                                {it.esPromo && <span className="badge-promo">PROMO</span>}
+                              </div>
+                            </>
+                          )}
+                          <div className="carrito-item-controles">
+                            <div className="qty-control">
+                              <button type="button" className="qty-btn" onClick={() => cambiarCantidad(it._key, -1)}>
+                                <i className="ti ti-minus" />
+                              </button>
+                              <span className="qty-val">{it.cantidad}</span>
+                              <button type="button" className="qty-btn" onClick={() => cambiarCantidad(it._key, 1)}>
+                                <i className="ti ti-plus" />
+                              </button>
+                            </div>
+                            <div className="carrito-item-precios">
+                              {!it.esLibre && it.esPromo && (
+                                <span className="carrito-item-precio-old">{fmt$(it.producto.precio_venta)}</span>
+                              )}
+                              <span className="carrito-item-unitario">{fmt$(it.precioFinal)}</span>
+                            </div>
+                            <span className="carrito-item-sub">{fmt$(it.precioFinal * it.cantidad)}</span>
+                            <button type="button" className="btn-icon btn-icon--danger" onClick={() => quitarDelCarrito(it._key)}>
+                              <i className="ti ti-x" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
         </div>
 
-        {/* ── Columna derecha 30% — Panel de cobro ── */}
+        {/* ════ COLUMNA DERECHA 35% — Panel de cobro ════ */}
         <div className="pos-right">
           {error && <div className="error-banner"><i className="ti ti-alert-circle" /> {error}</div>}
 
           {/* Comprobante */}
           <div className="panel-section">
             <p className="panel-section-title">Comprobante</p>
-            {comprobantesDisponibles.length === 1 ? (
-              <span className="badge badge--neutral" style={{ alignSelf: 'flex-start' }}>
-                <i className="ti ti-file-invoice" /> Factura {comprobantesDisponibles[0]}
-              </span>
-            ) : (
-              <div className="pills">
-                {comprobantesDisponibles.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`pill${comprobante === c ? ' pill--active' : ''}`}
-                    onClick={() => setComprobante(c)}
-                  >
-                    Factura {c}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="comp-selector">
+              {comprobantesDisponibles.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`comp-btn${comprobante === c ? ' comp-btn--active' : ''}${c === 'R' ? ' comp-btn--remito' : ''}`}
+                  onClick={() => setComprobante(c)}
+                >
+                  <i className={`ti ${COMP_ICON[c]}`} />
+                  <span>{COMP_LABEL[c]}</span>
+                  {comprobante === c && <i className="ti ti-check comp-btn-check" />}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Cliente */}
           <div className="panel-section">
             <p className="panel-section-title">Cliente</p>
-            {clienteSeleccionado ? (
-              <div className="cliente-selected">
-                <i className="ti ti-user" />
-                <span>{`${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`.trim()}</span>
-                <button type="button" className="btn-icon" onClick={() => { setClienteSeleccionado(null); setBusqCliente('') }}>
-                  <i className="ti ti-x" />
-                </button>
-              </div>
-            ) : (
-              <div style={{ position: 'relative' }}>
-                <input
-                  className="field-input"
-                  placeholder="Nombre o CUIT..."
-                  value={busqCliente}
-                  onChange={e => onBusqClienteChange(e.target.value)}
-                  onFocus={() => clienteResultados.length > 0 && setDropClienteAbierto(true)}
-                  onBlur={() => setTimeout(() => setDropClienteAbierto(false), 150)}
-                />
-                {dropClienteAbierto && clienteResultados.length > 0 && (
-                  <div className="prod-dropdown">
-                    {clienteResultados.map(c => (
-                      <button key={c.id} type="button" className="prod-dropdown-item" onMouseDown={() => seleccionarCliente(c)}>
-                        <span className="prod-dd-nombre">{c.nombre} {c.apellido || ''}</span>
-                        {c.cuit && <span className="prod-dd-precio">{c.cuit}</span>}
-                      </button>
-                    ))}
+            <div className="cliente-wrap">
+              {/* Chip "Consumidor Final" siempre visible como opción activa/inactiva */}
+              <button
+                type="button"
+                className={`cliente-cf-chip${!clienteSeleccionado ? ' cliente-cf-chip--activo' : ''}`}
+                onClick={() => seleccionarCliente(null)}
+              >
+                <i className="ti ti-user" /> Consumidor Final
+              </button>
+
+              {/* Buscador de cliente */}
+              <div className="cliente-busq-wrap">
+                {clienteSeleccionado ? (
+                  <div className="cliente-selected">
+                    <i className="ti ti-user-check" />
+                    <span>{`${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`.trim()}</span>
+                    {clienteSeleccionado.cuit && (
+                      <span className="cliente-selected-cuit">{clienteSeleccionado.cuit}</span>
+                    )}
+                    <button type="button" className="btn-icon" onClick={() => seleccionarCliente(null)}>
+                      <i className="ti ti-x" />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      ref={clienteInputRef}
+                      className="field-input"
+                      placeholder="Buscar cliente por nombre o CUIT..."
+                      value={busqCliente}
+                      onChange={e => onBusqClienteChange(e.target.value)}
+                      onFocus={() => setDropClienteAbierto(true)}
+                      onBlur={() => setTimeout(() => setDropClienteAbierto(false), 150)}
+                      autoComplete="off"
+                    />
+                    {dropClienteAbierto && clientesFiltrados.length > 0 && (
+                      <div className="prod-dropdown">
+                        {clientesFiltrados.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="prod-dropdown-item"
+                            onMouseDown={() => seleccionarCliente(c)}
+                          >
+                            <span className="prod-dd-nombre">
+                              {c.nombre} {c.apellido || ''}
+                            </span>
+                            <span className="prod-dd-precio">{c.cuit || ''}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Medios de pago */}
           <div className="panel-section">
             <p className="panel-section-title">Medios de pago</p>
+
             {pagos.map((p, idx) => (
               <div key={p._key} className={`pago-row${pagos.length === 1 ? ' pago-row--single' : ''}`}>
                 <select
@@ -525,15 +757,31 @@ export default function Ventas() {
                 )}
               </div>
             ))}
-            {pagos.length < 2 && carrito.length > 0 && (
-              <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={agregarSegundoPago}>
-                <i className="ti ti-plus" /> Segundo medio
+
+            {/* Botón segundo medio — solo si hay total > 0 */}
+            {pagos.length < 2 && totales.total > 0 && (
+              <button type="button" className="btn pos-btn-add-pago" onClick={agregarSegundoPago}>
+                <i className="ti ti-plus" /> Agregar segundo medio
               </button>
             )}
-            {descuentoEfectivoPct > 0 && pagos.some(p => p.medio_pago === 'efectivo') && (
-              <span className="badge badge--warning" style={{ alignSelf: 'flex-start' }}>
-                <i className="ti ti-tag" /> Descuento efectivo {descuentoEfectivoPct}%
-              </span>
+
+            {/* Badge descuento efectivo */}
+            {descuentoEfectivoPct > 0 && hayEfectivo && (
+              <div className="pos-badge-efectivo">
+                <i className="ti ti-tag" />
+                Descuento {descuentoEfectivoPct}% por efectivo
+              </div>
+            )}
+
+            {/* Diferencia si no cuadra */}
+            {carrito.length > 0 && totales.totalPagos > 0 && !totales.pagoCompleto && (
+              <div className={`pos-diferencia${totales.diferencia > 0 ? ' pos-diferencia--sobre' : ' pos-diferencia--faltan'}`}>
+                <i className={`ti ${totales.diferencia > 0 ? 'ti-arrow-up' : 'ti-arrow-down'}`} />
+                {totales.diferencia > 0
+                  ? `Sobran ${fmt$(Math.abs(totales.diferencia))}`
+                  : `Faltan ${fmt$(Math.abs(totales.diferencia))}`
+                }
+              </div>
             )}
           </div>
 
@@ -548,7 +796,7 @@ export default function Ventas() {
             )}
             {totales.descMonto > 0 && (
               <div className="total-row total-row--desc">
-                <span>Descuento {totales.descPct}%</span>
+                <span><i className="ti ti-tag" /> Desc. efectivo {totales.descPct}%</span>
                 <span>−{fmt$(totales.descMonto)}</span>
               </div>
             )}
@@ -558,12 +806,12 @@ export default function Ventas() {
             </div>
           </div>
 
-          {/* Aviso 2 comprobantes ARCA */}
+          {/* Aviso 2 comprobantes */}
           {ccDelCarrito.length >= 2 && (
             <div className="aviso-2cc">
-              <i className="ti ti-alert-triangle" />
+              <i className="ti ti-files" />
               <div>
-                <p>Se emitirán 2 comprobantes ARCA</p>
+                <p>Se emitirán 2 comprobantes</p>
                 {ccDelCarrito.map(({ cc, monto }) => (
                   <p key={cc.id} className="aviso-2cc-detalle">
                     <span
@@ -589,14 +837,15 @@ export default function Ventas() {
             <i className={`ti ${saving ? 'ti-loader-2' : 'ti-cash'}`} />
             {saving ? 'Procesando...' : carrito.length === 0 ? 'Cobrar' : `Cobrar ${fmt$(totales.total)}`}
           </button>
+
         </div>
       </div>
     )
   }
 
-  // ════════════════════════════════════════════════════════
-  // VISTA LISTA
-  // ════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════
+     VISTA LISTA
+  ════════════════════════════════════════════════════════ */
   return (
     <div className="ventas-page">
       <div className="page-header">
@@ -619,9 +868,19 @@ export default function Ventas() {
             <button className={`pill${filtroEstado === 'anulada' ? ' pill--active' : ''}`} onClick={() => setFiltroEstado('anulada')}>Anuladas</button>
           </div>
         </div>
-        <button className="btn btn--primary" onClick={() => setVista('pos')}>
-          <i className="ti ti-plus" /> Nueva venta
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn"
+            onClick={exportarExcel}
+            disabled={ventasFiltradas.length === 0}
+            title="Exportar a Excel"
+          >
+            <i className="ti ti-file-spreadsheet" /> Excel
+          </button>
+          <button className="btn btn--primary" onClick={() => setVista('pos')}>
+            <i className="ti ti-plus" /> Nueva venta
+          </button>
+        </div>
       </div>
 
       <div className="table-wrap">
@@ -645,6 +904,7 @@ export default function Ventas() {
               <tr>
                 <th>Fecha / hora</th>
                 <th>N°</th>
+                <th>Tipo</th>
                 <th>Cliente</th>
                 <th>Medios de pago</th>
                 <th className="td-right">Total</th>
@@ -657,8 +917,19 @@ export default function Ventas() {
                 <tr key={v.id}>
                   <td className="td-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFechaHora(v.fecha)}</td>
                   <td className="td-mono td-muted">{v.numero || '—'}</td>
+                  <td>
+                    {v.tipo_comprobante === 'R' ? (
+                      <span className="badge-remito">
+                        <i className="ti ti-truck-delivery" /> Remito
+                      </span>
+                    ) : (
+                      <span className="badge badge--neutral" style={{ fontSize: 10 }}>
+                        Fact. {v.tipo_comprobante || 'B'}
+                      </span>
+                    )}
+                  </td>
                   <td className="venta-cliente">
-                    {v.cliente ? `${v.cliente.nombre} ${v.cliente.apellido || ''}`.trim() : 'Cons. final'}
+                    {v.cliente ? `${v.cliente.nombre} ${v.cliente.apellido || ''}`.trim() : 'Consumidor final'}
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>

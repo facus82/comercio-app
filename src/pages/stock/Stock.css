@@ -74,3 +74,26 @@
 .promo-toggle {
   margin-top: var(--space-1);
 }
+
+/* Desglose neto + IVA + total bajo el campo precio de venta */
+.precio-desglose {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-sunken, var(--color-bg-secondary));
+  border: 1px solid var(--color-border-subtle, var(--color-border-primary));
+  border-radius: var(--radius-sm, 6px);
+  padding: 4px 10px;
+  flex-wrap: wrap;
+}
+.precio-desglose-sep {
+  opacity: 0.4;
+  font-weight: 600;
+}
+.precio-desglose-total {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}

@@ -1,0 +1,131 @@
+/* ── SuperAdmin Layout ───────────────────────────────────── */
+.sa-layout {
+  min-height: 100vh;
+  background: #F8FAFC;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.sa-header {
+  height: 52px;
+  background: #0F172A;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+/* Brand */
+.sa-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sa-logo-icon {
+  width: 30px;
+  height: 30px;
+  background: #6366F1;
+  border-radius: 8px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sa-logo-lines {
+  display: block;
+  width: 14px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 1px;
+  box-shadow: 0 -4px 0 #ffffff, 0 4px 0 #ffffff;
+}
+
+.sa-logo-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #E11D48;
+  border-radius: 50%;
+  bottom: 4px;
+  right: 4px;
+  border: 1px solid #6366F1;
+}
+
+.sa-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.sa-brand-gest { color: #F1F5F9; }
+.sa-brand-com  { color: #E11D48; }
+
+.sa-badge-sa {
+  font-size: 9px;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.25);
+  color: #A5B4FC;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border: 0.5px solid rgba(99, 102, 241, 0.4);
+}
+
+/* Right side */
+.sa-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sa-user-email {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.sa-user-email i { font-size: 14px; color: #475569; }
+
+.sa-btn-logout {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-family-base);
+  color: #94A3B8;
+  background: transparent;
+  border: 0.5px solid #334155;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.sa-btn-logout:hover {
+  color: #F1F5F9;
+  border-color: #64748B;
+}
+
+/* Main content */
+.sa-main {
+  flex: 1;
+  padding: 28px 32px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}

@@ -5,7 +5,7 @@ import Header from './Header'
 import './AppLayout.css'
 
 export default function AppLayout() {
-  const { session, loading } = useAuth()
+  const { session, perfil, loading } = useAuth()
 
   if (loading) {
     return (
@@ -17,6 +17,11 @@ export default function AppLayout() {
 
   if (!session) {
     return <Navigate to="/login" replace />
+  }
+
+  // Superadmin tiene su propio layout — no usa el sidebar de comercio
+  if (perfil?.rol === 'superadmin') {
+    return <Navigate to="/superadmin" replace />
   }
 
   return (

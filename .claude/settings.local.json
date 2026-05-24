@@ -9,7 +9,8 @@
       "Bash(taskkill /F /IM node.exe)",
       "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
       "PowerShell(Stop-Process -Force)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat: dashboard interactivo con métricas clicables y pago a proveedores *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\FACMA\\.claude\\projects\\c--Users-FACMA-Documents-comercio-app\\memory"

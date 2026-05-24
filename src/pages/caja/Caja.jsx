@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCaja } from '../../hooks/useCaja'
 import { useCajaMetricas } from '../../hooks/useCajaMetricas'
+import CierreDetalleModal from './CierreDetalleModal'
 import './Caja.css'
 
 const fmt$ = v =>
@@ -350,45 +351,150 @@ export default function Caja() {
   )
 }
 
+/* ── Ejemplos estáticos para cuando no hay cierres reales ── */
+const EJEMPLOS_CIERRES = [
+  {
+    id:                    'ej-1',
+    fecha_apertura:        '2026-05-21T08:00:00',
+    fecha_cierre:          '2026-05-21T22:10:00',
+    saldo_apertura:        5000,
+    total_ventas_efectivo: 38200,
+    total_ventas_debito:   12500,
+    total_ventas_credito:  0,
+    total_ventas_transfer: 0,
+    total_ventas_mp:       0,
+    efectivo_contado:      43000,
+    diferencia:            -200,
+    porCC: [
+      { id: 'cc-a', nombre: 'Graciela', color: '#6366f1', total: 28400 },
+      { id: 'cc-b', nombre: 'Marcela',  color: '#f59e0b', total: 22300 },
+    ],
+  },
+  {
+    id:                    'ej-2',
+    fecha_apertura:        '2026-05-21T08:00:00',
+    fecha_cierre:          '2026-05-21T13:30:00',
+    saldo_apertura:        4000,
+    total_ventas_efectivo: 31500,
+    total_ventas_debito:   0,
+    total_ventas_credito:  0,
+    total_ventas_transfer: 8900,
+    total_ventas_mp:       0,
+    efectivo_contado:      35500,
+    diferencia:            0,
+    porCC: [
+      { id: 'cc-a', nombre: 'Graciela', color: '#6366f1', total: 25100 },
+      { id: 'cc-b', nombre: 'Marcela',  color: '#f59e0b', total: 15300 },
+    ],
+  },
+  {
+    id:                    'ej-3',
+    fecha_apertura:        '2026-05-20T08:30:00',
+    fecha_cierre:          '2026-05-20T22:30:00',
+    saldo_apertura:        3000,
+    total_ventas_efectivo: 29700,
+    total_ventas_debito:   6400,
+    total_ventas_credito:  15200,
+    total_ventas_transfer: 0,
+    total_ventas_mp:       0,
+    efectivo_contado:      33200,
+    diferencia:            500,
+    porCC: [
+      { id: 'cc-a', nombre: 'Graciela', color: '#6366f1', total: 33100 },
+      { id: 'cc-b', nombre: 'Marcela',  color: '#f59e0b', total: 18200 },
+    ],
+  },
+]
+
+const MIN_VISIBLES = 3
+
 function HistorialCierres({ historial }) {
+  const [cierreDetalle, setCierreDetalle] = useState(null)
+
+  // Completar con ejemplos hasta tener MIN_VISIBLES entradas
+  const faltanEjemplos = Math.max(0, MIN_VISIBLES - historial.length)
+  const items          = [...historial, ...EJEMPLOS_CIERRES.slice(0, faltanEjemplos)]
+  const hayEjemplos    = faltanEjemplos > 0
+
+  const chipEjemplo = (
+    <span style={{
+      fontSize: 9, fontWeight: 500,
+      background: 'var(--color-border-tertiary)',
+      color: 'var(--color-text-tertiary)',
+      borderRadius: 4, padding: '1px 5px',
+      letterSpacing: '0.04em', textTransform: 'uppercase',
+    }}>
+      ejemplo
+    </span>
+  )
+
   return (
-    <div className="form-section">
-      <p className="form-section-title">Últimos cierres</p>
-      {historial.length === 0 ? (
-        <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>Sin cierres anteriores.</p>
-      ) : (
+    <>
+      <div className="form-section">
+        <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          Últimos cierres
+          {hayEjemplos && chipEjemplo}
+        </p>
         <div className="caja-historial-list">
-          {historial.map(c => (
-            <div key={c.id} className="caja-historial-item">
-              <div className="caja-hist-fecha">{fmtFechaHora(c.fecha_cierre)}</div>
-              <div className="caja-hist-row"><span>Apertura</span><span>{fmt$(c.saldo_apertura)}</span></div>
-              {c.total_ventas_efectivo > 0 && (
-                <div className="caja-hist-row"><span>Efectivo</span><span>{fmt$(c.total_ventas_efectivo)}</span></div>
-              )}
-              {c.total_ventas_debito > 0 && (
-                <div className="caja-hist-row"><span>Débito</span><span>{fmt$(c.total_ventas_debito)}</span></div>
-              )}
-              {c.total_ventas_credito > 0 && (
-                <div className="caja-hist-row"><span>Crédito</span><span>{fmt$(c.total_ventas_credito)}</span></div>
-              )}
-              {c.total_ventas_transfer > 0 && (
-                <div className="caja-hist-row"><span>Transferencia</span><span>{fmt$(c.total_ventas_transfer)}</span></div>
-              )}
-              {c.efectivo_contado != null && (
-                <div className="caja-hist-row caja-hist-row--sep">
-                  <span>Contado</span><span>{fmt$(c.efectivo_contado)}</span>
+          {items.map((c, idx) => {
+            const esEj       = idx >= historial.length
+            const totalVend  = ['total_ventas_efectivo','total_ventas_debito','total_ventas_credito',
+                                'total_ventas_transfer','total_ventas_mp','total_ventas_cc']
+                               .reduce((s, k) => s + Number(c[k] || 0), 0)
+            return (
+              <button
+                key={c.id}
+                type="button"
+                className="caja-historial-item caja-historial-item--btn"
+                style={esEj ? { opacity: 0.55 } : undefined}
+                onClick={() => setCierreDetalle(c)}
+                title="Ver detalle"
+              >
+                {/* Fecha */}
+                <div className="caja-hist-fecha" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {fmtFechaHora(c.fecha_cierre)}
+                  {esEj && chipEjemplo}
+                  <i className="ti ti-chevron-right caja-hist-arrow" />
                 </div>
-              )}
-              {c.diferencia != null && (
-                <div className={`caja-hist-row caja-hist-diferencia ${Number(c.diferencia) < 0 ? 'neg' : 'pos'}`}>
-                  <span>Diferencia</span>
-                  <span>{Number(c.diferencia) >= 0 ? '+' : ''}{fmt$(c.diferencia)}</span>
+
+                {/* Total + CC rápido */}
+                <div className="caja-hist-row caja-hist-row--total">
+                  <span>Total del día</span>
+                  <span style={{ color: 'var(--color-text-success)', fontWeight: 600 }}>{fmt$(totalVend)}</span>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {c.diferencia != null && (
+                  <div className={`caja-hist-row caja-hist-diferencia ${Number(c.diferencia) < 0 ? 'neg' : 'pos'}`}>
+                    <span>Diferencia</span>
+                    <span>{Number(c.diferencia) >= 0 ? '+' : ''}{fmt$(c.diferencia)}</span>
+                  </div>
+                )}
+
+                {/* Centros de costos */}
+                {c.porCC?.length > 0 && (
+                  <div className="caja-hist-cc">
+                    {c.porCC.map(cc => (
+                      <div key={cc.id} className="caja-hist-cc-item">
+                        <span className="caja-hist-cc-dot" style={{ background: cc.color || 'var(--color-accent)' }} />
+                        <span className="caja-hist-cc-nombre">{cc.nombre}</span>
+                        <span className="caja-hist-cc-total">{fmt$(cc.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </button>
+            )
+          })}
         </div>
+      </div>
+
+      {/* Modal de detalle */}
+      {cierreDetalle && (
+        <CierreDetalleModal
+          cierre={cierreDetalle}
+          onCerrar={() => setCierreDetalle(null)}
+        />
       )}
-    </div>
+    </>
   )
 }

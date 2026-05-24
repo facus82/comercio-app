@@ -17,6 +17,12 @@ export function AuthProvider({ children }) {
 
     if (!usuario) { setPerfil(null); return }
 
+    // Superadmin no tiene comercio_id — saltear la query para evitar 400
+    if (!usuario.comercio_id) {
+      setPerfil({ ...usuario, comercio: null })
+      return
+    }
+
     const { data: comercio } = await supabase
       .from('comercios')
       .select('id, nombre, nombre_fantasia, localidad, provincia, condicion_iva, logo_url, cuit, direccion, telefono, ticket_pie')
@@ -35,8 +41,18 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session?.user) fetchPerfil(session.user.id)
-      else setPerfil(null)
+      if (session?.user) {
+        fetchPerfil(session.user.id)
+        // Registrar último acceso al iniciar sesión
+        if (_event === 'SIGNED_IN') {
+          supabase.from('usuarios')
+            .update({ ultimo_acceso: new Date().toISOString() })
+            .eq('id', session.user.id)
+            .then(() => {})
+        }
+      } else {
+        setPerfil(null)
+      }
     })
 
     return () => subscription.unsubscribe()

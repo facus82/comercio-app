@@ -28,11 +28,16 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-header">
-          <div className="login-logo">
-            <span>LC</span>
+          <div className="gestcom-icon-wrap">
+            <div className="gestcom-icon">
+              <span className="gestcom-lines" />
+              <span className="gestcom-dot" />
+            </div>
+            <h1 className="gestcom-name">
+              <span className="gestcom-gest">Gest</span><span className="gestcom-com">Com</span>
+            </h1>
+            <p className="gestcom-sub">Gestión comercial</p>
           </div>
-          <h1>LibroKiosco</h1>
-          <p>Ingresá a tu cuenta para continuar</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
