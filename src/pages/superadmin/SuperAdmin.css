@@ -397,3 +397,58 @@
 .td-muted {
   color: var(--color-text-secondary);
 }
+
+/* ── Responsive móvil ─────────────────────────────────────── */
+
+@media (max-width: 768px) {
+
+  .sa-tab-content {
+    padding: 14px 12px;
+  }
+
+  /* Tabla con scroll horizontal — sobreescribe overflow:hidden global */
+  .sa-tab-content .table-wrap {
+    overflow-x: auto !important;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
+
+  /* Ocultar columnas no esenciales en mobile */
+  .data-table th:nth-child(4),   /* Localidad */
+  .data-table td:nth-child(4),
+  .data-table th:nth-child(5),   /* Alta */
+  .data-table td:nth-child(5) {
+    display: none;
+  }
+
+  /* Hacer la tabla más compacta */
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  /* Formulario en una sola columna */
+  .sa-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tabs más compactos */
+  .sa-tab {
+    font-size: 11px;
+    padding: 7px 10px;
+    gap: 4px;
+  }
+
+  /* Botón entrar más pequeño */
+  .sa-btn-entrar {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  /* Toolbar apilado si no hay espacio */
+  .sa-toolbar {
+    flex-wrap: wrap;
+  }
+}
