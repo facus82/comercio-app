@@ -627,6 +627,7 @@ function TabUsuarios() {
       const { error } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
         email,
+        options: { redirectTo: `${window.location.origin}/set-password` },
       })
       if (error) throw error
       setOk(`✓ Link de recuperación generado para ${email}. Supabase enviará el email automáticamente.`)
