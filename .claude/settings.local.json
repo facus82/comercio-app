@@ -10,10 +10,19 @@
       "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
       "PowerShell(Stop-Process -Force)",
       "Bash(git add *)",
-      "Bash(git commit -m 'feat: dashboard interactivo con métricas clicables y pago a proveedores *)"
+      "Bash(git commit -m 'feat: dashboard interactivo con métricas clicables y pago a proveedores *)",
+      "Bash(git -C c:/Users/FACMA/Documents/comercio-app log --all --oneline --diff-filter=A -- \"*.env\")",
+      "Bash(git -C c:/Users/FACMA/Documents/comercio-app log --all --oneline --full-history -- \".env\" \"*.env.local\")",
+      "PowerShell(supabase --version 2>&1)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(npm install -g supabase 2>&1)",
+      "PowerShell(tail -5)",
+      "PowerShell(supabase --version)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\FACMA\\.claude\\projects\\c--Users-FACMA-Documents-comercio-app\\memory"
+      "c:\\Users\\FACMA\\.claude\\projects\\c--Users-FACMA-Documents-comercio-app\\memory",
+      "c:\\Users\\FACMA\\Documents\\comercio-app\\supabase\\functions"
     ]
   }
 }

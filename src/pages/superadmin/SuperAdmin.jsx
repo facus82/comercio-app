@@ -457,6 +457,10 @@ function TabUsuarios() {
   const [error,      setError]      = useState('')
   const [ok,         setOk]         = useState('')
   const [resetting,  setResetting]  = useState(null)
+  // edición inline
+  const [editandoId, setEditandoId] = useState(null)   // userId del row expandido
+  const [formEdit,   setFormEdit]   = useState({})     // { nombre, rol, comercio_id }
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -518,6 +522,45 @@ function TabUsuarios() {
       setError(e.message)
     } finally {
       setResetting(null)
+    }
+  }
+
+  function abrirEdicion(u) {
+    setEditandoId(u.id)
+    setFormEdit({
+      nombre:      u.nombre      || '',
+      rol:         u.rol         || 'cajero',
+      comercio_id: u.comercio_id || '',
+    })
+    setError('')
+  }
+
+  async function guardarEdicion(userId) {
+    setSavingEdit(true); setError('')
+    try {
+      await adminOps.editarUsuario(userId, {
+        nombre:      formEdit.nombre.trim()  || undefined,
+        rol:         formEdit.rol            || undefined,
+        comercio_id: formEdit.comercio_id    || undefined,
+      })
+      // Actualizar local
+      setUsuarios(p => p.map(u => {
+        if (u.id !== userId) return u
+        const comercio = comercios.find(c => c.id === formEdit.comercio_id) ?? u.comercio
+        return {
+          ...u,
+          nombre:      formEdit.nombre.trim() || u.nombre,
+          rol:         formEdit.rol,
+          comercio_id: formEdit.comercio_id || u.comercio_id,
+          comercio,
+        }
+      }))
+      setOk('✓ Usuario actualizado.')
+      setEditandoId(null)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -613,6 +656,7 @@ function TabUsuarios() {
             </thead>
             <tbody>
               {usuarios.map(u => (
+                <>
                 <tr key={u.id}>
                   <td style={{ fontWeight: 500 }}>{u.nombre || '—'}</td>
                   <td className="td-muted">{u.email}</td>
@@ -622,6 +666,14 @@ function TabUsuarios() {
                   <td><EstadoBadge activo={u.activo} /></td>
                   <td className="td-actions">
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      <button
+                        className={`btn-icon${editandoId === u.id ? ' btn-icon--active' : ''}`}
+                        title="Editar usuario"
+                        disabled={u.rol === 'superadmin'}
+                        onClick={() => editandoId === u.id ? setEditandoId(null) : abrirEdicion(u)}
+                      >
+                        <i className="ti ti-pencil" />
+                      </button>
                       <button
                         className="btn-icon"
                         title="Resetear contraseña"
@@ -641,6 +693,67 @@ function TabUsuarios() {
                     </div>
                   </td>
                 </tr>
+                {/* Fila expandida — edición inline */}
+                {editandoId === u.id && (
+                  <tr key={`${u.id}-edit`} className="sa-tr-expand">
+                    <td colSpan={7}>
+                      <div className="sa-inline-form">
+                        <span className="sa-inline-label">
+                          <i className="ti ti-pencil" />
+                          Editar <strong>{u.email}</strong>
+                        </span>
+                        {error && (
+                          <div className="sa-error" style={{ margin: 0 }}>
+                            <i className="ti ti-alert-circle" /> {error}
+                          </div>
+                        )}
+                        <input
+                          className="field-input"
+                          placeholder="Nombre y apellido"
+                          value={formEdit.nombre}
+                          onChange={e => setFormEdit(p => ({ ...p, nombre: e.target.value }))}
+                          autoFocus
+                        />
+                        <select
+                          className="field-select"
+                          value={formEdit.rol}
+                          onChange={e => setFormEdit(p => ({ ...p, rol: e.target.value }))}
+                        >
+                          {ROLES_USUARIO.map(r => (
+                            <option key={r} value={r}>{r.replace('_', ' ')}</option>
+                          ))}
+                        </select>
+                        <select
+                          className="field-select"
+                          value={formEdit.comercio_id}
+                          onChange={e => setFormEdit(p => ({ ...p, comercio_id: e.target.value }))}
+                        >
+                          <option value="">— Sin comercio —</option>
+                          {comercios.map(c => (
+                            <option key={c.id} value={c.id}>{comercioNombre(c)}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="btn btn--filled"
+                          style={{ fontSize: 11 }}
+                          disabled={savingEdit}
+                          onClick={() => guardarEdicion(u.id)}
+                        >
+                          <i className={`ti ${savingEdit ? 'ti-loader-2' : 'ti-check'}`} />
+                          {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ fontSize: 11 }}
+                          onClick={() => { setEditandoId(null); setError('') }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </>
               ))}
             </tbody>
           </table>

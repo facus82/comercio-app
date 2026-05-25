@@ -165,14 +165,18 @@ Deno.serve(async (req: Request) => {
   if (op === 'entrar_como') {
     const { comercio_id, redirectTo } = body as any
 
-    const { data: prop, error: errP } = await admin
+    // Traemos todos los propietarios — si hay más de uno tomamos el primero activo
+    const { data: props, error: errP } = await admin
       .from('usuarios')
-      .select('email')
+      .select('email, activo')
       .eq('comercio_id', comercio_id)
       .eq('rol', 'propietario')
-      .maybeSingle()
+      .order('activo', { ascending: false }) // activos primero
 
-    if (errP || !prop) return json({ error: prop ? errP?.message : 'Sin propietario asignado' }, 400)
+    if (errP) return json({ error: errP.message }, 500)
+    if (!props?.length) return json({ error: 'Este comercio no tiene un propietario asignado.' }, 400)
+
+    const prop = props[0]
 
     const { data, error: errL } = await admin.auth.admin.generateLink({
       type: 'magiclink',
@@ -232,6 +236,17 @@ Deno.serve(async (req: Request) => {
       email,
       options: { redirectTo },
     })
+    if (error) return json({ error: error.message }, 500)
+    return json({ ok: true })
+  }
+
+  if (op === 'editar_usuario') {
+    const { id, nombre, rol, comercio_id } = body as any
+    const update: Record<string, unknown> = {}
+    if (nombre    !== undefined) update.nombre      = nombre
+    if (rol       !== undefined) update.rol         = rol
+    if (comercio_id !== undefined) update.comercio_id = comercio_id
+    const { error } = await admin.from('usuarios').update(update).eq('id', id)
     if (error) return json({ error: error.message }, 500)
     return json({ ok: true })
   }

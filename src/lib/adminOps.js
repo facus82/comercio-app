@@ -70,6 +70,9 @@ export const adminOps = {
   toggleUsuario: (id, activo) =>
     call('toggle_usuario', { id, activo }),
 
+  editarUsuario: (id, { nombre, rol, comercio_id }) =>
+    call('editar_usuario', { id, nombre, rol, comercio_id }),
+
   resetPassword: (email) =>
     call('reset_password', {
       email,
