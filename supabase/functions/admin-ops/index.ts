@@ -231,12 +231,23 @@ Deno.serve(async (req: Request) => {
 
   if (op === 'reset_password') {
     const { email, redirectTo } = body as any
-    const { error } = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: { redirectTo },
-    })
-    if (error) return json({ error: error.message }, 500)
+
+    // Buscar si el usuario ya confirmó su email
+    const { data: { users }, error: errList } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    if (errList) return json({ error: errList.message }, 500)
+
+    const authUser = users.find((u: any) => u.email === email)
+
+    if (authUser && !authUser.email_confirmed_at) {
+      // Usuario invitado que nunca confirmó — reenviar invitación
+      const { error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
+      if (error) return json({ error: error.message }, 500)
+    } else {
+      // Usuario confirmado — enviar email de recuperación de contraseña
+      const { error } = await admin.auth.resetPasswordForEmail(email, { redirectTo })
+      if (error) return json({ error: error.message }, 500)
+    }
+
     return json({ ok: true })
   }
 

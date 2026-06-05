@@ -33,7 +33,9 @@ export default function CierreDetalleModal({ cierre, onCerrar }) {
   const totalVendido  = medios.reduce((s, m) => s + m.monto, 0)
   const efectivo      = Number(cierre.total_ventas_efectivo || 0)
   const saldoAp       = Number(cierre.saldo_apertura || 0)
-  const totalEsperado = saldoAp + efectivo
+  const totalIngresos = Number(cierre.total_ingresos || 0)
+  const totalRetiros  = Number(cierre.total_retiros  || 0)
+  const totalEsperado = saldoAp + efectivo + totalIngresos - totalRetiros
   const contado       = cierre.efectivo_contado != null ? Number(cierre.efectivo_contado) : null
   const diferencia    = cierre.diferencia != null ? Number(cierre.diferencia) : null
   const totalCC       = (cierre.porCC || []).reduce((s, cc) => s + cc.total, 0)
@@ -138,6 +140,18 @@ export default function CierreDetalleModal({ cierre, onCerrar }) {
                 <span>Ventas en efectivo</span>
                 <span>+ {fmt$(efectivo)}</span>
               </div>
+              {totalIngresos > 0 && (
+                <div className="cierre-det-arq-row cierre-det-arq-row--ingreso">
+                  <span><i className="ti ti-arrow-up-circle" style={{ fontSize: 11, marginRight: 4 }} />Ingresos</span>
+                  <span>+ {fmt$(totalIngresos)}</span>
+                </div>
+              )}
+              {totalRetiros > 0 && (
+                <div className="cierre-det-arq-row cierre-det-arq-row--retiro">
+                  <span><i className="ti ti-arrow-down-circle" style={{ fontSize: 11, marginRight: 4 }} />Retiros</span>
+                  <span>- {fmt$(totalRetiros)}</span>
+                </div>
+              )}
               <div className="cierre-det-arq-row cierre-det-arq-row--sep cierre-det-arq-row--bold">
                 <span>Total esperado</span>
                 <span>{fmt$(totalEsperado)}</span>

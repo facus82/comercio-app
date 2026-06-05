@@ -14,21 +14,28 @@ function fmtFechaHora(str) {
   return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 }
 
+function fmtHora(str) {
+  if (!str) return '—'
+  return new Date(str).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+}
+
 const MEDIOS = [
-  { key: 'efectivo',     label: 'Efectivo',       icon: 'ti-cash'           },
-  { key: 'debito',       label: 'Débito',          icon: 'ti-credit-card'    },
-  { key: 'credito',      label: 'Crédito',         icon: 'ti-credit-card'    },
-  { key: 'transferencia',label: 'Transferencia',   icon: 'ti-building-bank'  },
-  { key: 'mercado_pago', label: 'Mercado Pago',    icon: 'ti-currency-dollar'},
-  { key: 'cc',           label: 'Cta. corriente',  icon: 'ti-notebook'       },
+  { key: 'efectivo',      label: 'Efectivo',       icon: 'ti-cash'           },
+  { key: 'debito',        label: 'Débito',          icon: 'ti-credit-card'    },
+  { key: 'credito',       label: 'Crédito',         icon: 'ti-credit-card'    },
+  { key: 'transferencia', label: 'Transferencia',   icon: 'ti-building-bank'  },
+  { key: 'mercado_pago',  label: 'Mercado Pago',    icon: 'ti-currency-dollar'},
+  { key: 'cc',            label: 'Cta. corriente',  icon: 'ti-notebook'       },
 ]
+
+const FORM_MOV_VACIO = { tipo: 'ingreso', monto: '', concepto: '' }
 
 export default function Caja() {
   const { perfil } = useAuth()
   const comercioId  = perfil?.comercio?.id
   const esPropietario = perfil?.rol === 'propietario'
 
-  const { cajaActual, historial, loading, abrir, cerrar } = useCaja(comercioId, perfil?.id)
+  const { cajaActual, historial, movimientos, loading, abrir, cerrar, registrarMovimiento } = useCaja(comercioId, perfil?.id)
   const { metricas, centrosCostos, loadingMetricas } = useCajaMetricas(
     comercioId,
     cajaActual?.fecha_apertura ?? null
@@ -36,12 +43,17 @@ export default function Caja() {
 
   const [saldoApertura,   setSaldoApertura]   = useState('')
   const [abriendo,        setAbriendo]        = useState(false)
-  const [egresosManual,   setEgresosManual]   = useState('')
   const [efectivoContado, setEfectivoContado] = useState('')
   const [notasCierre,     setNotasCierre]     = useState('')
   const [cerrando,        setCerrando]        = useState(false)
   const [activeTab,       setActiveTab]       = useState('general')
   const [error,           setError]           = useState('')
+
+  // Formulario de movimientos
+  const [showMovForm,   setShowMovForm]   = useState(false)
+  const [formMov,       setFormMov]       = useState(FORM_MOV_VACIO)
+  const [savingMov,     setSavingMov]     = useState(false)
+  const [errorMov,      setErrorMov]      = useState('')
 
   async function handleAbrir(e) {
     e.preventDefault()
@@ -57,14 +69,25 @@ export default function Caja() {
     const res = await cerrar({ efectivoContado, notas: notasCierre })
     setCerrando(false)
     if (res.error) setError(res.error.message || 'Error al cerrar caja.')
-    else { setEfectivoContado(''); setEgresosManual(''); setNotasCierre('') }
+    else { setEfectivoContado(''); setNotasCierre('') }
+  }
+
+  async function handleMovimiento(e) {
+    e.preventDefault()
+    setSavingMov(true); setErrorMov('')
+    const res = await registrarMovimiento(formMov)
+    setSavingMov(false)
+    if (res.error) { setErrorMov(res.error.message); return }
+    setFormMov(FORM_MOV_VACIO)
+    setShowMovForm(false)
   }
 
   // Cálculos arqueo
   const efectivoDelDia = metricas?.porMedioPago?.efectivo ?? 0
-  const egresosNum     = Number(egresosManual) || 0
   const saldoApert     = Number(cajaActual?.saldo_apertura) || 0
-  const totalEsperado  = saldoApert + efectivoDelDia - egresosNum
+  const totalIngresos  = movimientos.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + Number(m.monto), 0)
+  const totalRetiros   = movimientos.filter(m => m.tipo === 'retiro').reduce((s, m) => s + Number(m.monto), 0)
+  const totalEsperado  = saldoApert + efectivoDelDia + totalIngresos - totalRetiros
   const contadoNum     = Number(efectivoContado) || 0
   const diferencia     = efectivoContado !== '' ? contadoNum - totalEsperado : null
 
@@ -180,6 +203,102 @@ export default function Caja() {
                   </div>
                 </div>
 
+                {/* Movimientos de caja */}
+                <div className="form-section">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <p className="form-section-title" style={{ margin: 0 }}>
+                      Movimientos de caja
+                    </p>
+                    <button
+                      className="btn btn--primary"
+                      style={{ fontSize: 11, padding: '4px 10px' }}
+                      onClick={() => { setShowMovForm(p => !p); setErrorMov('') }}
+                    >
+                      <i className={`ti ${showMovForm ? 'ti-x' : 'ti-plus'}`} />
+                      {showMovForm ? 'Cancelar' : 'Nuevo movimiento'}
+                    </button>
+                  </div>
+
+                  {showMovForm && (
+                    <form onSubmit={handleMovimiento} className="caja-mov-form">
+                      {errorMov && (
+                        <div className="error-banner" style={{ marginBottom: 8, fontSize: 12 }}>
+                          <i className="ti ti-alert-circle" /> {errorMov}
+                        </div>
+                      )}
+                      <div className="caja-mov-tipo-btns">
+                        <button
+                          type="button"
+                          className={`caja-mov-tipo-btn ${formMov.tipo === 'ingreso' ? 'caja-mov-tipo-btn--ingreso' : ''}`}
+                          onClick={() => setFormMov(p => ({ ...p, tipo: 'ingreso' }))}
+                        >
+                          <i className="ti ti-arrow-up-circle" /> Ingreso
+                        </button>
+                        <button
+                          type="button"
+                          className={`caja-mov-tipo-btn ${formMov.tipo === 'retiro' ? 'caja-mov-tipo-btn--retiro' : ''}`}
+                          onClick={() => setFormMov(p => ({ ...p, tipo: 'retiro' }))}
+                        >
+                          <i className="ti ti-arrow-down-circle" /> Retiro
+                        </button>
+                      </div>
+                      <div className="caja-mov-form-fields">
+                        <div className="field">
+                          <label className="field-label">Monto $</label>
+                          <input
+                            className="field-input"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="0"
+                            value={formMov.monto}
+                            onChange={e => setFormMov(p => ({ ...p, monto: e.target.value }))}
+                            required
+                            autoFocus
+                          />
+                        </div>
+                        <div className="field">
+                          <label className="field-label">Concepto</label>
+                          <input
+                            className="field-input"
+                            placeholder={formMov.tipo === 'ingreso' ? 'Ej: cambio, vuelto...' : 'Ej: pago proveedor...'}
+                            value={formMov.concepto}
+                            onChange={e => setFormMov(p => ({ ...p, concepto: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <button type="submit" className="btn btn--filled" disabled={savingMov} style={{ fontSize: 12 }}>
+                        <i className={`ti ${savingMov ? 'ti-loader-2' : 'ti-check'}`} />
+                        {savingMov ? 'Guardando...' : `Registrar ${formMov.tipo}`}
+                      </button>
+                    </form>
+                  )}
+
+                  {movimientos.length === 0 ? (
+                    <p className="caja-mov-empty">Sin movimientos registrados hoy.</p>
+                  ) : (
+                    <div className="caja-mov-list">
+                      {movimientos.map(m => (
+                        <div key={m.id} className={`caja-mov-item caja-mov-item--${m.tipo}`}>
+                          <div className="caja-mov-icon">
+                            <i className={`ti ${m.tipo === 'ingreso' ? 'ti-arrow-up-circle' : 'ti-arrow-down-circle'}`} />
+                          </div>
+                          <div className="caja-mov-info">
+                            <span className="caja-mov-tipo-label">
+                              {m.tipo === 'ingreso' ? 'Ingreso' : 'Retiro'}
+                            </span>
+                            {m.concepto && <span className="caja-mov-concepto">{m.concepto}</span>}
+                            <span className="caja-mov-hora">{fmtHora(m.created_at)}</span>
+                          </div>
+                          <span className="caja-mov-monto">
+                            {m.tipo === 'ingreso' ? '+' : '-'}{fmt$(m.monto)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Tabs por centro de costo */}
                 {centrosCostos.length > 0 && (
                   <div className="form-section">
@@ -223,7 +342,7 @@ export default function Caja() {
                         )}
                       </div>
                     ) : (() => {
-                      const cc   = centrosCostos.find(c => c.id === activeTab)
+                      const cc    = centrosCostos.find(c => c.id === activeTab)
                       const datos = metricas?.porCC?.find(c => c.id === activeTab)
                       return (
                         <div className="caja-cc-detail">
@@ -268,21 +387,28 @@ export default function Caja() {
                 </div>
                 <div className="caja-arqueo-row">
                   <span>Ventas en efectivo</span>
-                  <span style={{ color: 'var(--color-text-success)' }}>{fmt$(efectivoDelDia)}</span>
+                  <span style={{ color: 'var(--color-text-success)' }}>+ {fmt$(efectivoDelDia)}</span>
                 </div>
 
-                <div className="field" style={{ margin: '4px 0' }}>
-                  <label className="field-label">Egresos manuales $</label>
-                  <input
-                    className="field-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0"
-                    value={egresosManual}
-                    onChange={e => setEgresosManual(e.target.value)}
-                  />
-                </div>
+                {totalIngresos > 0 && (
+                  <div className="caja-arqueo-row caja-arqueo-row--ingreso">
+                    <span>
+                      <i className="ti ti-arrow-up-circle" style={{ fontSize: 11, marginRight: 4 }} />
+                      Ingresos
+                    </span>
+                    <span>+ {fmt$(totalIngresos)}</span>
+                  </div>
+                )}
+
+                {totalRetiros > 0 && (
+                  <div className="caja-arqueo-row caja-arqueo-row--retiro">
+                    <span>
+                      <i className="ti ti-arrow-down-circle" style={{ fontSize: 11, marginRight: 4 }} />
+                      Retiros
+                    </span>
+                    <span>- {fmt$(totalRetiros)}</span>
+                  </div>
+                )}
 
                 <div className="caja-arqueo-row caja-arqueo-row--total">
                   <span>Total esperado</span>
@@ -363,6 +489,8 @@ const EJEMPLOS_CIERRES = [
     total_ventas_credito:  0,
     total_ventas_transfer: 0,
     total_ventas_mp:       0,
+    total_ingresos:        2000,
+    total_retiros:         15000,
     efectivo_contado:      43000,
     diferencia:            -200,
     porCC: [
@@ -380,6 +508,8 @@ const EJEMPLOS_CIERRES = [
     total_ventas_credito:  0,
     total_ventas_transfer: 8900,
     total_ventas_mp:       0,
+    total_ingresos:        0,
+    total_retiros:         0,
     efectivo_contado:      35500,
     diferencia:            0,
     porCC: [
@@ -397,6 +527,8 @@ const EJEMPLOS_CIERRES = [
     total_ventas_credito:  15200,
     total_ventas_transfer: 0,
     total_ventas_mp:       0,
+    total_ingresos:        5000,
+    total_retiros:         10000,
     efectivo_contado:      33200,
     diferencia:            500,
     porCC: [
@@ -411,7 +543,6 @@ const MIN_VISIBLES = 3
 function HistorialCierres({ historial }) {
   const [cierreDetalle, setCierreDetalle] = useState(null)
 
-  // Completar con ejemplos hasta tener MIN_VISIBLES entradas
   const faltanEjemplos = Math.max(0, MIN_VISIBLES - historial.length)
   const items          = [...historial, ...EJEMPLOS_CIERRES.slice(0, faltanEjemplos)]
   const hayEjemplos    = faltanEjemplos > 0
@@ -437,10 +568,10 @@ function HistorialCierres({ historial }) {
         </p>
         <div className="caja-historial-list">
           {items.map((c, idx) => {
-            const esEj       = idx >= historial.length
-            const totalVend  = ['total_ventas_efectivo','total_ventas_debito','total_ventas_credito',
-                                'total_ventas_transfer','total_ventas_mp','total_ventas_cc']
-                               .reduce((s, k) => s + Number(c[k] || 0), 0)
+            const esEj      = idx >= historial.length
+            const totalVend = ['total_ventas_efectivo','total_ventas_debito','total_ventas_credito',
+                               'total_ventas_transfer','total_ventas_mp','total_ventas_cc']
+                              .reduce((s, k) => s + Number(c[k] || 0), 0)
             return (
               <button
                 key={c.id}
@@ -450,18 +581,31 @@ function HistorialCierres({ historial }) {
                 onClick={() => setCierreDetalle(c)}
                 title="Ver detalle"
               >
-                {/* Fecha */}
                 <div className="caja-hist-fecha" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {fmtFechaHora(c.fecha_cierre)}
                   {esEj && chipEjemplo}
                   <i className="ti ti-chevron-right caja-hist-arrow" />
                 </div>
 
-                {/* Total + CC rápido */}
                 <div className="caja-hist-row caja-hist-row--total">
                   <span>Total del día</span>
                   <span style={{ color: 'var(--color-text-success)', fontWeight: 600 }}>{fmt$(totalVend)}</span>
                 </div>
+
+                {(Number(c.total_ingresos) > 0 || Number(c.total_retiros) > 0) && (
+                  <div className="caja-hist-movs">
+                    {Number(c.total_ingresos) > 0 && (
+                      <span className="caja-hist-mov caja-hist-mov--ingreso">
+                        <i className="ti ti-arrow-up-circle" /> +{fmt$(c.total_ingresos)}
+                      </span>
+                    )}
+                    {Number(c.total_retiros) > 0 && (
+                      <span className="caja-hist-mov caja-hist-mov--retiro">
+                        <i className="ti ti-arrow-down-circle" /> -{fmt$(c.total_retiros)}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {c.diferencia != null && (
                   <div className={`caja-hist-row caja-hist-diferencia ${Number(c.diferencia) < 0 ? 'neg' : 'pos'}`}>
@@ -470,7 +614,6 @@ function HistorialCierres({ historial }) {
                   </div>
                 )}
 
-                {/* Centros de costos */}
                 {c.porCC?.length > 0 && (
                   <div className="caja-hist-cc">
                     {c.porCC.map(cc => (
@@ -488,7 +631,6 @@ function HistorialCierres({ historial }) {
         </div>
       </div>
 
-      {/* Modal de detalle */}
       {cierreDetalle && (
         <CierreDetalleModal
           cierre={cierreDetalle}

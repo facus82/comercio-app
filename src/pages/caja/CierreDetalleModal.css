@@ -182,6 +182,14 @@
   color: var(--color-text-success);
 }
 
+.cierre-det-arq-row--ingreso {
+  color: var(--color-success-700, #15803d);
+}
+
+.cierre-det-arq-row--retiro {
+  color: var(--color-danger-600, #dc2626);
+}
+
 .cierre-det-arq-row--sep {
   border-top: 0.5px solid var(--color-border-tertiary);
   padding-top: 8px;

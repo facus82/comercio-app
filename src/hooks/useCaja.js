@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 export function useCaja(comercioId, perfilId) {
-  const [cajaActual, setCajaActual] = useState(null)
-  const [historial,  setHistorial]  = useState([])
-  const [loading,    setLoading]    = useState(true)
+  const [cajaActual,   setCajaActual]   = useState(null)
+  const [historial,    setHistorial]    = useState([])
+  const [movimientos,  setMovimientos]  = useState([])
+  const [loading,      setLoading]      = useState(true)
 
   useEffect(() => {
     if (!comercioId) return
@@ -38,12 +39,25 @@ export function useCaja(comercioId, perfilId) {
         .order('nombre'),
     ])
 
-    setCajaActual(resActual.data || null)
+    const cajaAbierta = resActual.data || null
+    setCajaActual(cajaAbierta)
+
+    // Cargar movimientos de la caja abierta
+    if (cajaAbierta) {
+      const { data: movs } = await supabase
+        .from('caja_movimientos')
+        .select('*, usuario:usuarios(nombre)')
+        .eq('caja_id', cajaAbierta.id)
+        .order('created_at', { ascending: true })
+      setMovimientos(movs || [])
+    } else {
+      setMovimientos([])
+    }
 
     const cierres = resHistorial.data || []
     const ccs     = resCCs.data || []
 
-    // Para cada cierre traer el desglose por CC (una sola query cubre todos)
+    // Para cada cierre traer el desglose por CC
     let cierresConCC = cierres
     if (cierres.length > 0 && ccs.length > 0) {
       const oldest = cierres[cierres.length - 1]
@@ -79,30 +93,61 @@ export function useCaja(comercioId, perfilId) {
     const { data, error } = await supabase
       .from('cierres_caja')
       .insert({
-        comercio_id:   comercioId,
-        usuario_id:    perfilId,
+        comercio_id:    comercioId,
+        usuario_id:     perfilId,
         saldo_apertura: Number(saldoApertura) || 0,
-        estado:        'abierta',
+        estado:         'abierta',
       })
       .select()
       .single()
     if (error) return { error }
     setCajaActual(data)
+    setMovimientos([])
+    return { data }
+  }
+
+  async function registrarMovimiento({ tipo, monto, concepto }) {
+    if (!cajaActual) return { error: { message: 'No hay caja abierta.' } }
+    const montoNum = Number(monto)
+    if (!montoNum || montoNum <= 0) return { error: { message: 'El monto debe ser mayor a 0.' } }
+
+    const { data, error } = await supabase
+      .from('caja_movimientos')
+      .insert({
+        caja_id:     cajaActual.id,
+        comercio_id: comercioId,
+        usuario_id:  perfilId,
+        tipo,
+        monto:       montoNum,
+        concepto:    concepto?.trim() || null,
+      })
+      .select('*, usuario:usuarios(nombre)')
+      .single()
+
+    if (error) return { error }
+    setMovimientos(prev => [...prev, data])
     return { data }
   }
 
   async function cerrar({ efectivoContado, notas }) {
     if (!cajaActual) return { error: { message: 'No hay caja abierta.' } }
 
-    // Calcular totales de ventas desde apertura
-    const { data: pagosData } = await supabase
-      .from('venta_pagos')
-      .select('medio_pago, monto, venta:ventas!inner(comercio_id, estado, fecha)')
-      .eq('venta.comercio_id', comercioId)
-      .eq('venta.estado', 'completada')
-      .gte('venta.fecha', cajaActual.fecha_apertura)
+    const [{ data: pagosData }, { data: movsData }] = await Promise.all([
+      supabase
+        .from('venta_pagos')
+        .select('medio_pago, monto, venta:ventas!inner(comercio_id, estado, fecha)')
+        .eq('venta.comercio_id', comercioId)
+        .eq('venta.estado', 'completada')
+        .gte('venta.fecha', cajaActual.fecha_apertura),
+      supabase
+        .from('caja_movimientos')
+        .select('tipo, monto')
+        .eq('caja_id', cajaActual.id),
+    ])
 
     const pagos = pagosData || []
+    const movs  = movsData  || []
+
     const suma = (mp) => pagos.filter(p => p.medio_pago === mp).reduce((s, p) => s + Number(p.monto), 0)
 
     const totalEfectivo  = suma('efectivo')
@@ -111,7 +156,11 @@ export function useCaja(comercioId, perfilId) {
     const totalTransfer  = suma('transferencia')
     const totalMp        = suma('mercado_pago')
     const totalCc        = suma('cuenta_corriente')
-    const saldoSistema   = Number(cajaActual.saldo_apertura) + totalEfectivo
+
+    const totalIngresos  = movs.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + Number(m.monto), 0)
+    const totalRetiros   = movs.filter(m => m.tipo === 'retiro').reduce((s, m) => s + Number(m.monto), 0)
+
+    const saldoSistema   = Number(cajaActual.saldo_apertura) + totalEfectivo + totalIngresos - totalRetiros
     const efectivoNum    = Number(efectivoContado) || 0
     const diferencia     = efectivoNum - saldoSistema
 
@@ -126,6 +175,8 @@ export function useCaja(comercioId, perfilId) {
         total_ventas_transfer: totalTransfer,
         total_ventas_mp:       totalMp,
         total_ventas_cc:       totalCc,
+        total_ingresos:        totalIngresos,
+        total_retiros:         totalRetiros,
         saldo_sistema:         saldoSistema,
         diferencia:            diferencia,
         estado:                'cerrada',
@@ -138,8 +189,9 @@ export function useCaja(comercioId, perfilId) {
     if (error) return { error }
     setHistorial(prev => [data, ...prev])
     setCajaActual(null)
+    setMovimientos([])
     return { data }
   }
 
-  return { cajaActual, historial, loading, abrir, cerrar, recargar: cargar }
+  return { cajaActual, historial, movimientos, loading, abrir, cerrar, registrarMovimiento, recargar: cargar }
 }
