@@ -160,6 +160,118 @@ export default function ProductoPanel({
     setSavingLote(false)
   }
 
+  /* ── Registrar ingreso (compra individual) ── */
+  const hoyStr = () => new Date().toISOString().slice(0, 10)
+
+  const [showIngreso,    setShowIngreso]    = useState(false)
+  const [formIngreso,    setFormIngreso]    = useState({
+    proveedor_id: '', tipo_comprobante: 'factura', numero_comprobante: '',
+    fecha: hoyStr(), cantidad: '1', precio_costo: '', flete: '', fecha_vencimiento: '',
+  })
+  const [savingIngreso,  setSavingIngreso]  = useState(false)
+  const [errorIngreso,   setErrorIngreso]   = useState('')
+
+  function resetIngreso() {
+    setFormIngreso({
+      proveedor_id: '', tipo_comprobante: 'factura', numero_comprobante: '',
+      fecha: hoyStr(), cantidad: '1',
+      precio_costo: String(producto?.precio_costo || ''),
+      flete: '', fecha_vencimiento: '',
+    })
+    setErrorIngreso('')
+    setShowIngreso(false)
+  }
+
+  async function handleGuardarIngreso(e) {
+    e.preventDefault()
+    const cant  = Number(formIngreso.cantidad)
+    const costo = Number(formIngreso.precio_costo)
+    if (!cant || cant <= 0)  { setErrorIngreso('La cantidad es obligatoria.'); return }
+    if (!costo || costo < 0) { setErrorIngreso('El precio de costo es obligatorio.'); return }
+
+    setSavingIngreso(true); setErrorIngreso('')
+
+    const flete          = Number(formIngreso.flete) || 0
+    const costoEfectivo  = +(costo + flete / cant).toFixed(2)
+    const subtotal       = +(costo * cant).toFixed(2)
+
+    // 1. Crear compra
+    const { data: compra, error: errC } = await supabase
+      .from('compras')
+      .insert({
+        comercio_id:        producto.comercio_id,
+        proveedor_id:       formIngreso.proveedor_id || null,
+        fecha:              formIngreso.fecha,
+        tipo_comprobante:   formIngreso.tipo_comprobante,
+        numero_comprobante: formIngreso.numero_comprobante.trim() || null,
+        estado:             'pendiente',
+        subtotal,
+        iva_monto:          0,
+        flete,
+        total:              +(subtotal + flete).toFixed(2),
+        descuento_monto:    0,
+      })
+      .select('id, numero')
+      .single()
+
+    if (errC) { setErrorIngreso(errC.message); setSavingIngreso(false); return }
+
+    // 2. Crear compra_item
+    await supabase.from('compra_items').insert({
+      compra_id:       compra.id,
+      producto_id:     producto.id,
+      cantidad:        cant,
+      precio_unitario: costo,
+      iva_porcentaje:  Number(producto.iva_porcentaje) || 21,
+      descuento_pct:   0,
+      subtotal,
+    })
+
+    // 3. Actualizar producto
+    const costoActual  = Number(form.precio_costo || 0)
+    const nuevoStock   = Number(form.stock_actual || 0) + cant
+    const updates      = {}
+    if (form.controla_stock !== false) updates.stock_actual = nuevoStock
+    if (costoEfectivo > costoActual)   updates.precio_costo = costoEfectivo
+
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('productos').update(updates).eq('id', producto.id)
+      setForm(prev => ({ ...prev, ...updates }))
+      if (updates.precio_costo) setCalc(prev => ({ ...prev, compra: updates.precio_costo.toFixed(2) }))
+    }
+
+    // 4. Crear lote si corresponde
+    if (form.controla_lotes || formIngreso.fecha_vencimiento) {
+      const { data: loteNuevo } = await supabase.from('lotes').insert({
+        producto_id:       producto.id,
+        fecha_vencimiento: formIngreso.fecha_vencimiento || null,
+        cantidad_inicial:  cant,
+        cantidad_actual:   cant,
+        precio_costo:      costoEfectivo,
+        estado:            'activo',
+      }).select().single()
+      if (loteNuevo) setLotes(prev => [loteNuevo, ...prev])
+    }
+
+    // 5. Movimiento de stock
+    const stockAnterior = Number(form.stock_actual || 0)
+    await supabase.from('stock_movimientos').insert({
+      comercio_id:     producto.comercio_id,
+      producto_id:     producto.id,
+      tipo:            'entrada',
+      cantidad:        cant,
+      stock_anterior:  stockAnterior,
+      stock_posterior: stockAnterior + cant,
+      precio_unitario: costoEfectivo,
+      motivo:          `Compra #${compra.numero || compra.id.slice(0, 8)}${formIngreso.numero_comprobante ? ` — ${formIngreso.numero_comprobante}` : ''}`,
+      referencia_tipo: 'compra',
+      referencia_id:   compra.id,
+    })
+
+    resetIngreso()
+    setSavingIngreso(false)
+  }
+
   useEffect(() => {
     setForm(toForm(producto))
     setCalc(initCalc(producto))
@@ -641,6 +753,111 @@ export default function ProductoPanel({
                   </tbody>
                 </table>
               )
+            )}
+          </div>
+        )}
+
+        {/* ── Registrar ingreso ── */}
+        {!esNuevo && (
+          <div className="form-section lotes-section">
+            <div className="lotes-section__header">
+              <p className="form-section-title" style={{ margin: 0 }}>
+                <i className="ti ti-shopping-cart-plus" /> Registrar ingreso
+              </p>
+              {!showIngreso && (
+                <button type="button" className="btn btn--primary"
+                  onClick={() => { setShowIngreso(true); setFormIngreso(p => ({ ...p, precio_costo: String(producto?.precio_costo || ''), fecha: hoyStr() })) }}>
+                  <i className="ti ti-plus" /> Nueva compra
+                </button>
+              )}
+            </div>
+
+            {showIngreso && (
+              <form onSubmit={handleGuardarIngreso} className="lote-form">
+                {errorIngreso && (
+                  <div className="error-banner"><i className="ti ti-alert-circle" /> {errorIngreso}</div>
+                )}
+                <div className="form-grid">
+                  <div className="field">
+                    <label className="field-label">Proveedor</label>
+                    <select className="field-select" value={formIngreso.proveedor_id}
+                      onChange={e => setFormIngreso(p => ({ ...p, proveedor_id: e.target.value }))}>
+                      <option value="">Sin proveedor</option>
+                      {proveedores.map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre_fantasia || p.razon_social}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Fecha</label>
+                    <input className="field-input" type="date" value={formIngreso.fecha}
+                      onChange={e => setFormIngreso(p => ({ ...p, fecha: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <div className="field">
+                    <label className="field-label">Tipo comprobante</label>
+                    <select className="field-select" value={formIngreso.tipo_comprobante}
+                      onChange={e => setFormIngreso(p => ({ ...p, tipo_comprobante: e.target.value }))}>
+                      {['factura','factura_a','factura_b','factura_c','remito','ticket','nota_credito'].map(t => (
+                        <option key={t} value={t}>{t.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="field-label">N° comprobante</label>
+                    <input className="field-input" placeholder="0001-00012345"
+                      value={formIngreso.numero_comprobante}
+                      onChange={e => setFormIngreso(p => ({ ...p, numero_comprobante: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-grid form-grid--3">
+                  <div className="field">
+                    <label className="field-label">Cantidad *</label>
+                    <input className="field-input" type="number" min="0.001" step="0.001" autoFocus
+                      value={formIngreso.cantidad}
+                      onChange={e => setFormIngreso(p => ({ ...p, cantidad: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Precio costo $ *</label>
+                    <input className="field-input" type="number" min="0" step="0.01"
+                      value={formIngreso.precio_costo}
+                      onChange={e => setFormIngreso(p => ({ ...p, precio_costo: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Flete $</label>
+                    <input className="field-input" type="number" min="0" step="0.01" placeholder="0"
+                      value={formIngreso.flete}
+                      onChange={e => setFormIngreso(p => ({ ...p, flete: e.target.value }))} />
+                  </div>
+                </div>
+                {(form.controla_lotes) && (
+                  <div className="field" style={{ maxWidth: 200 }}>
+                    <label className="field-label">Fecha vencimiento</label>
+                    <input className="field-input" type="date"
+                      value={formIngreso.fecha_vencimiento}
+                      onChange={e => setFormIngreso(p => ({ ...p, fecha_vencimiento: e.target.value }))} />
+                  </div>
+                )}
+                {Number(formIngreso.flete) > 0 && Number(formIngreso.cantidad) > 0 && (
+                  <p className="field-hint" style={{ color: 'var(--color-accent)' }}>
+                    <i className="ti ti-truck-delivery" />
+                    Costo efectivo por unidad:{' '}
+                    <strong>
+                      ${(Number(formIngreso.precio_costo || 0) + Number(formIngreso.flete) / Number(formIngreso.cantidad)).toFixed(2)}
+                    </strong>
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button type="submit" className="btn btn--primary" disabled={savingIngreso}>
+                    <i className={`ti ${savingIngreso ? 'ti-loader-2' : 'ti-check'}`} />
+                    {savingIngreso ? 'Guardando...' : 'Registrar ingreso'}
+                  </button>
+                  <button type="button" className="btn" onClick={resetIngreso}>
+                    <i className="ti ti-x" /> Cancelar
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         )}
