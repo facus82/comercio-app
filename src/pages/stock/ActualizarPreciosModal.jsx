@@ -7,11 +7,12 @@ const fmt$ = v =>
   }).format(v || 0)
 
 export default function ActualizarPreciosModal({
-  productos, categorias, onActualizarMasivo, onCerrar,
+  productos, categorias, subcategorias = [], onActualizarMasivo, onCerrar,
 }) {
-  const [busqueda,        setBusqueda]        = useState('')
-  const [filtroCategoria, setFiltroCategoria] = useState('')
-  const [seleccionados,   setSeleccionados]   = useState(new Set())
+  const [busqueda,          setBusqueda]          = useState('')
+  const [filtroCategoria,   setFiltroCategoria]   = useState('')
+  const [filtroSubcategoria,setFiltroSubcategoria] = useState('')
+  const [seleccionados,     setSeleccionados]     = useState(new Set())
   const [modo,            setModo]            = useState('venta') // 'venta' | 'costo'
   const [variacion,       setVariacion]       = useState('')
   const [saving,          setSaving]          = useState(false)
@@ -31,10 +32,11 @@ export default function ActualizarPreciosModal({
       if (q && !p.nombre.toLowerCase().includes(q) &&
                !(p.codigo || '').toLowerCase().includes(q) &&
                !(p.codigo_barras || '').toLowerCase().includes(q)) return false
-      if (filtroCategoria && p.categoria_id !== filtroCategoria) return false
+      if (filtroCategoria    && p.categoria_id    !== filtroCategoria)    return false
+      if (filtroSubcategoria && p.subcategoria_id !== filtroSubcategoria) return false
       return true
     })
-  }, [productos, busqueda, filtroCategoria])
+  }, [productos, busqueda, filtroCategoria, filtroSubcategoria])
 
   /* ── Selección ── */
   const todosSeleccionados =
@@ -155,13 +157,25 @@ export default function ActualizarPreciosModal({
             <select
               className="field-select apm-select-cat"
               value={filtroCategoria}
-              onChange={e => setFiltroCategoria(e.target.value)}
+              onChange={e => { setFiltroCategoria(e.target.value); setFiltroSubcategoria('') }}
             >
               <option value="">Todas las categorías</option>
               {categorias.map(c => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
+            {filtroCategoria && subcategorias.filter(s => s.categoria_id === filtroCategoria).length > 0 && (
+              <select
+                className="field-select apm-select-cat"
+                value={filtroSubcategoria}
+                onChange={e => setFiltroSubcategoria(e.target.value)}
+              >
+                <option value="">Todas las subcategorías</option>
+                {subcategorias.filter(s => s.categoria_id === filtroCategoria).map(s => (
+                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Ajuste */}

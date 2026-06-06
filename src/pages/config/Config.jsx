@@ -4,9 +4,10 @@ import { supabase } from '../../lib/supabase'
 import './Config.css'
 
 const TABS = [
-  { key: 'comercio',  label: 'Comercio',        icon: 'ti-building-store' },
-  { key: 'categorias',label: 'Categorías',       icon: 'ti-tag'            },
-  { key: 'centros',   label: 'Centros de costo', icon: 'ti-chart-pie'      },
+  { key: 'comercio',     label: 'Comercio',        icon: 'ti-building-store' },
+  { key: 'categorias',   label: 'Categorías',       icon: 'ti-tag'            },
+  { key: 'subcategorias',label: 'Subcategorías',    icon: 'ti-tags'           },
+  { key: 'centros',      label: 'Centros de costo', icon: 'ti-chart-pie'      },
 ]
 
 const CONDICIONES_IVA = ['Responsable Inscripto','Monotributista','Exento','Consumidor Final']
@@ -302,6 +303,140 @@ function TabCategorias({ comercioId }) {
   )
 }
 
+// ── Subcategorías ─────────────────────────────────────────────
+function TabSubcategorias({ comercioId }) {
+  const [categorias,    setCategorias]    = useState([])
+  const [subcategorias, setSubcategorias] = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [filtroCat,     setFiltroCat]     = useState('')
+  const [form,          setForm]          = useState({ categoria_id: '', nombre: '' })
+  const [editId,        setEditId]        = useState(null)
+  const [saving,        setSaving]        = useState(false)
+  const [error,         setError]         = useState('')
+
+  useEffect(() => {
+    if (!comercioId) return
+    Promise.all([
+      supabase.from('categorias').select('id, nombre, color').eq('comercio_id', comercioId).eq('activo', true).order('nombre'),
+      supabase.from('subcategorias').select('*, categoria:categorias(nombre, color)').eq('comercio_id', comercioId).order('nombre'),
+    ]).then(([resC, resS]) => {
+      setCategorias(resC.data || [])
+      setSubcategorias(resS.data || [])
+      setLoading(false)
+    })
+  }, [comercioId])
+
+  function resetForm() { setForm({ categoria_id: filtroCat, nombre: '' }); setEditId(null); setError('') }
+
+  function startEdit(s) { setForm({ categoria_id: s.categoria_id, nombre: s.nombre }); setEditId(s.id) }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.categoria_id) { setError('Seleccioná una categoría.'); return }
+    if (!form.nombre.trim()) { setError('El nombre es obligatorio.'); return }
+    setSaving(true); setError('')
+    if (editId) {
+      const { data, error } = await supabase.from('subcategorias')
+        .update({ nombre: form.nombre.trim(), categoria_id: form.categoria_id })
+        .eq('id', editId)
+        .select('*, categoria:categorias(nombre, color)').single()
+      if (error) { setError(error.message); setSaving(false); return }
+      setSubcategorias(prev => prev.map(s => s.id === editId ? data : s))
+    } else {
+      const { data, error } = await supabase.from('subcategorias')
+        .insert({ nombre: form.nombre.trim(), categoria_id: form.categoria_id, comercio_id: comercioId })
+        .select('*, categoria:categorias(nombre, color)').single()
+      if (error) { setError(error.message); setSaving(false); return }
+      setSubcategorias(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+    }
+    setSaving(false); resetForm()
+  }
+
+  async function toggleActivo(id, estado) {
+    await supabase.from('subcategorias').update({ activo: estado }).eq('id', id)
+    setSubcategorias(prev => prev.map(s => s.id === id ? { ...s, activo: estado } : s))
+  }
+
+  const subcatFiltradas = filtroCat
+    ? subcategorias.filter(s => s.categoria_id === filtroCat)
+    : subcategorias
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="form-section">
+        <p className="form-section-title">{editId ? 'Editar subcategoría' : 'Nueva subcategoría'}</p>
+        {error && <div className="error-banner"><i className="ti ti-alert-circle" /> {error}</div>}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div className="field" style={{ minWidth: 160 }}>
+            <label className="field-label">Categoría</label>
+            <select className="field-select" value={form.categoria_id}
+              onChange={e => setForm(p => ({ ...p, categoria_id: e.target.value }))}>
+              <option value="">Seleccioná...</option>
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 160 }}>
+            <label className="field-label">Nombre</label>
+            <input className="field-input" placeholder="Resmas, Lápices..." value={form.nombre}
+              onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} />
+          </div>
+          <button type="submit" className="btn btn--primary" disabled={saving}>
+            <i className={`ti ${saving ? 'ti-loader-2' : editId ? 'ti-check' : 'ti-plus'}`} />
+            {editId ? 'Guardar' : 'Agregar'}
+          </button>
+          {editId && <button type="button" className="btn" onClick={resetForm}><i className="ti ti-x" /></button>}
+        </form>
+      </div>
+
+      {/* Filtro por categoría */}
+      <div className="pills">
+        <button className={`pill${!filtroCat ? ' pill--active' : ''}`} onClick={() => setFiltroCat('')}>Todas</button>
+        {categorias.map(c => (
+          <button key={c.id} className={`pill${filtroCat === c.id ? ' pill--active' : ''}`}
+            style={{ '--pill-color': c.color }} onClick={() => setFiltroCat(c.id)}>
+            {c.nombre}
+          </button>
+        ))}
+      </div>
+
+      <div className="table-wrap">
+        {loading ? (
+          <div className="table-loading"><i className="ti ti-loader-2" style={{ fontSize: 24, opacity: 0.4 }} /></div>
+        ) : (
+          <table className="data-table">
+            <thead><tr><th>Categoría</th><th>Subcategoría</th><th>Estado</th><th /></tr></thead>
+            <tbody>
+              {subcatFiltradas.length === 0 ? (
+                <tr><td colSpan={4} className="td-muted" style={{ textAlign: 'center', padding: '24px 0' }}>
+                  {filtroCat ? 'Sin subcategorías para esta categoría.' : 'No hay subcategorías creadas.'}
+                </td></tr>
+              ) : subcatFiltradas.map(s => (
+                <tr key={s.id}>
+                  <td>
+                    <span className="badge-cat" style={{ '--cat-color': s.categoria?.color || '#3b82f6' }}>
+                      {s.categoria?.nombre || '—'}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 500 }}>{s.nombre}</td>
+                  <td><span className={`badge ${s.activo ? 'badge--success' : 'badge--neutral'}`}>{s.activo ? 'Activa' : 'Inactiva'}</span></td>
+                  <td className="td-actions">
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      <button className="btn-icon" onClick={() => startEdit(s)}><i className="ti ti-pencil" /></button>
+                      <button className={`btn-icon${s.activo ? ' btn-icon--danger' : ''}`} onClick={() => toggleActivo(s.id, !s.activo)}>
+                        <i className={`ti ${s.activo ? 'ti-eye-off' : 'ti-eye'}`} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Centros de costo ──────────────────────────────────────────
 function TabCentros({ comercioId }) {
   const [centros,  setCentros]  = useState([])
@@ -428,9 +563,10 @@ export default function Config() {
       </div>
 
       <div className="config-body">
-        {tabActiva === 'comercio'  && <TabComercio  comercioId={comercioId} />}
-        {tabActiva === 'categorias'&& <TabCategorias comercioId={comercioId} />}
-        {tabActiva === 'centros'   && <TabCentros   comercioId={comercioId} />}
+        {tabActiva === 'comercio'     && <TabComercio     comercioId={comercioId} />}
+        {tabActiva === 'categorias'   && <TabCategorias   comercioId={comercioId} />}
+        {tabActiva === 'subcategorias'&& <TabSubcategorias comercioId={comercioId} />}
+        {tabActiva === 'centros'      && <TabCentros      comercioId={comercioId} />}
       </div>
     </div>
   )

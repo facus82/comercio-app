@@ -8,7 +8,7 @@ const fmt$ = v =>
 
 const DEFAULTS = {
   nombre: '', codigo: '', codigo_barras: '', descripcion: '', notas: '',
-  categoria_id: '', proveedor_id: '', centro_costo_id: '',
+  categoria_id: '', subcategoria_id: '', proveedor_id: '', centro_costo_id: '',
   unidad_medida: 'unidad',
   precio_costo: '', precio_venta: '', precio_mayorista: '',
   iva_porcentaje: 21,
@@ -25,6 +25,7 @@ function toForm(p) {
     descripcion:     p.descripcion     ?? '',
     notas:           p.notas           ?? '',
     categoria_id:    p.categoria_id    ?? '',
+    subcategoria_id: p.subcategoria_id ?? '',
     proveedor_id:    p.proveedor_id    ?? '',
     centro_costo_id: p.centro_costo_id ?? '',
     unidad_medida:   p.unidad_medida   ?? 'unidad',
@@ -53,7 +54,7 @@ function initCalc(producto) {
 }
 
 export default function ProductoPanel({
-  producto, categorias, proveedores, centrosCostos,
+  producto, categorias, subcategorias = [], proveedores, centrosCostos,
   onCrear, onActualizar, onCerrar,
 }) {
   const [form, setForm]   = useState(() => toForm(producto))
@@ -135,6 +136,7 @@ export default function ProductoPanel({
       descripcion:     form.descripcion.trim()   || null,
       notas:           form.notas.trim()         || null,
       categoria_id:    form.categoria_id         || null,
+      subcategoria_id: form.subcategoria_id      || null,
       proveedor_id:    form.proveedor_id         || null,
       centro_costo_id: form.centro_costo_id      || null,
       unidad_medida:   form.unidad_medida,
@@ -221,11 +223,24 @@ export default function ProductoPanel({
               <div className="field">
                 <label className="field-label">Categoría</label>
                 <select className="field-select" value={form.categoria_id}
-                  onChange={e => setF('categoria_id', e.target.value)}>
+                  onChange={e => { setF('categoria_id', e.target.value); setF('subcategoria_id', '') }}>
                   <option value="">Sin categoría</option>
                   {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
+              {form.categoria_id && (
+                <div className="field">
+                  <label className="field-label">Subcategoría</label>
+                  <select className="field-select" value={form.subcategoria_id}
+                    onChange={e => setF('subcategoria_id', e.target.value)}>
+                    <option value="">Sin subcategoría</option>
+                    {subcategorias
+                      .filter(s => s.categoria_id === form.categoria_id)
+                      .map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)
+                    }
+                  </select>
+                </div>
+              )}
               <div className="field">
                 <label className="field-label">Unidad de medida</label>
                 <select className="field-select" value={form.unidad_medida}

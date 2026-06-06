@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 export function useProductos(comercioId, perfilId) {
-  const [productos, setProductos]       = useState([])
-  const [categorias, setCategorias]     = useState([])
-  const [proveedores, setProveedores]   = useState([])
-  const [centrosCostos, setCentrosCostos] = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState(null)
+  const [productos, setProductos]           = useState([])
+  const [categorias, setCategorias]         = useState([])
+  const [subcategorias, setSubcategorias]   = useState([])
+  const [proveedores, setProveedores]       = useState([])
+  const [centrosCostos, setCentrosCostos]   = useState([])
+  const [loading, setLoading]               = useState(true)
+  const [error, setError]                   = useState(null)
 
   useEffect(() => {
     if (!comercioId) return
@@ -18,15 +19,21 @@ export function useProductos(comercioId, perfilId) {
     setLoading(true)
     setError(null)
 
-    const [resP, resC, resProv, resCCs] = await Promise.all([
+    const [resP, resC, resSub, resProv, resCCs] = await Promise.all([
       supabase
         .from('productos')
-        .select('*, categoria:categorias(nombre, color)')
+        .select('*, categoria:categorias(nombre, color), subcategoria:subcategorias(id, nombre)')
         .eq('comercio_id', comercioId)
         .order('nombre'),
       supabase
         .from('categorias')
         .select('id, nombre, color')
+        .eq('comercio_id', comercioId)
+        .eq('activo', true)
+        .order('nombre'),
+      supabase
+        .from('subcategorias')
+        .select('id, nombre, categoria_id')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -47,6 +54,7 @@ export function useProductos(comercioId, perfilId) {
     if (resP.error) setError(resP.error.message)
     setProductos(resP.data || [])
     setCategorias(resC.data || [])
+    setSubcategorias(resSub.data || [])
     setProveedores(resProv.data || [])
     setCentrosCostos(resCCs.data || [])
     setLoading(false)
@@ -184,6 +192,7 @@ export function useProductos(comercioId, perfilId) {
   return {
     productos,
     categorias,
+    subcategorias,
     proveedores,
     centrosCostos,
     loading,

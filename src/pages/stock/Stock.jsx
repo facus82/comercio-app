@@ -25,13 +25,14 @@ export default function Stock() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const {
-    productos, categorias, proveedores, centrosCostos,
+    productos, categorias, subcategorias, proveedores, centrosCostos,
     loading, crear, actualizar, actualizarMasivo, toggleActivo,
   } = useProductos(comercioId, perfil?.id)
 
-  const [busqueda,        setBusqueda]        = useState('')
-  const [filtroCategoria, setFiltroCategoria] = useState(null)
-  const [soloStockBajo,   setSoloStockBajo]   = useState(false)
+  const [busqueda,          setBusqueda]          = useState('')
+  const [filtroCategoria,   setFiltroCategoria]   = useState(null)
+  const [filtroSubcategoria,setFiltroSubcategoria] = useState(null)
+  const [soloStockBajo,     setSoloStockBajo]     = useState(false)
   const [panelAbierto,    setPanelAbierto]    = useState(false)
   const [productoEditar,  setProductoEditar]  = useState(null)
   const [importando,      setImportando]      = useState(false)
@@ -53,7 +54,8 @@ export default function Stock() {
       if (q && !p.nombre.toLowerCase().includes(q) &&
                !(p.codigo || '').toLowerCase().includes(q) &&
                !(p.codigo_barras || '').toLowerCase().includes(q)) return false
-      if (filtroCategoria && p.categoria_id !== filtroCategoria) return false
+      if (filtroCategoria   && p.categoria_id    !== filtroCategoria)   return false
+      if (filtroSubcategoria && p.subcategoria_id !== filtroSubcategoria) return false
       if (soloStockBajo && p.controla_stock && !p.es_servicio) {
         if (Number(p.stock_actual) > Number(p.stock_minimo)) return false
       } else if (soloStockBajo) {
@@ -61,7 +63,7 @@ export default function Stock() {
       }
       return true
     })
-  }, [productos, busqueda, filtroCategoria, soloStockBajo])
+  }, [productos, busqueda, filtroCategoria, filtroSubcategoria, soloStockBajo])
 
   const stockBajoTotal = useMemo(
     () => productos.filter(p => p.controla_stock && !p.es_servicio &&
@@ -95,7 +97,7 @@ export default function Stock() {
           <div className="pills">
             <button
               className={`pill${!filtroCategoria && !soloStockBajo ? ' pill--active' : ''}`}
-              onClick={() => { setFiltroCategoria(null); setSoloStockBajo(false) }}
+              onClick={() => { setFiltroCategoria(null); setFiltroSubcategoria(null); setSoloStockBajo(false) }}
             >
               Todos
             </button>
@@ -104,7 +106,7 @@ export default function Stock() {
                 key={cat.id}
                 className={`pill${filtroCategoria === cat.id ? ' pill--active' : ''}`}
                 style={{ '--pill-color': cat.color }}
-                onClick={() => { setFiltroCategoria(cat.id); setSoloStockBajo(false) }}
+                onClick={() => { setFiltroCategoria(cat.id); setFiltroSubcategoria(null); setSoloStockBajo(false) }}
               >
                 {cat.nombre}
               </button>
@@ -119,6 +121,27 @@ export default function Stock() {
               </button>
             )}
           </div>
+
+          {/* Subcategorías — solo cuando hay categoría seleccionada */}
+          {filtroCategoria && subcategorias.filter(s => s.categoria_id === filtroCategoria).length > 0 && (
+            <div className="pills" style={{ paddingTop: 4, borderTop: '0.5px solid var(--color-border)', marginTop: 4 }}>
+              <button
+                className={`pill${!filtroSubcategoria ? ' pill--active' : ''}`}
+                onClick={() => setFiltroSubcategoria(null)}
+              >
+                Todas
+              </button>
+              {subcategorias.filter(s => s.categoria_id === filtroCategoria).map(s => (
+                <button
+                  key={s.id}
+                  className={`pill${filtroSubcategoria === s.id ? ' pill--active' : ''}`}
+                  onClick={() => setFiltroSubcategoria(s.id)}
+                >
+                  {s.nombre}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 6 }}>
@@ -263,6 +286,7 @@ export default function Stock() {
         <ActualizarPreciosModal
           productos={productos}
           categorias={categorias}
+          subcategorias={subcategorias}
           onActualizarMasivo={actualizarMasivo}
           onCerrar={() => setActualizandoPrecios(false)}
         />
@@ -273,6 +297,7 @@ export default function Stock() {
         <ProductoPanel
           producto={productoEditar}
           categorias={categorias}
+          subcategorias={subcategorias}
           proveedores={proveedores}
           centrosCostos={centrosCostos}
           onCrear={crear}
