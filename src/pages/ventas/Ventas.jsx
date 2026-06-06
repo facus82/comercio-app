@@ -34,6 +34,16 @@ const MEDIOS_PAGO = [
 
 const ESTADO_BADGE = { completada: 'badge--success', anulada: 'badge--danger', pendiente: 'badge--warning' }
 
+// Chequea si una promo aplica a un ítem del carrito
+function promoMatchItem(promo, it) {
+  if (it.esLibre) return false
+  if (promo.aplica_a === 'todo') return true
+  if (promo.aplica_a === 'categoria'    && promo.categoria_id    === it.producto.categoria_id)    return true
+  if (promo.aplica_a === 'subcategoria' && promo.subcategoria_id === it.producto.subcategoria_id) return true
+  if (promo.aplica_a === 'producto'     && promo.producto_id     === it.producto.id)              return true
+  return false
+}
+
 export default function Ventas() {
   const { perfil } = useAuth()
   const comercioId            = perfil?.comercio?.id
@@ -75,6 +85,9 @@ export default function Ventas() {
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
+  /* ── Promociones ── */
+  const [promociones, setPromociones] = useState([])
+
   /* ── Filtros lista ── */
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState(null)
@@ -106,10 +119,10 @@ export default function Ventas() {
 
   async function cargarCatalogo() {
     setCargandoProds(true)
-    const [resProds, resClis] = await Promise.all([
+    const [resProds, resClis, resPromos] = await Promise.all([
       supabase
         .from('productos')
-        .select('id, nombre, codigo_barras, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
+        .select('id, nombre, codigo_barras, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -119,10 +132,16 @@ export default function Ventas() {
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
+      supabase
+        .from('promociones')
+        .select('*')
+        .eq('comercio_id', comercioId)
+        .eq('activo', true),
     ])
     if (resClis.error) console.error('Error cargando clientes:', resClis.error)
     setProductos(resProds.data || [])
     setClientes(resClis.data || [])
+    setPromociones(resPromos.data || [])
     setCargandoProds(false)
     setTimeout(() => busqRef.current?.focus(), 100)
   }
@@ -293,32 +312,84 @@ export default function Ventas() {
     })
   }
 
+  /* ── Efectos de promociones por ítem (para display en carrito) ── */
+  const efectosPromo = useMemo(() => {
+    const hoy = new Date().toISOString().slice(0, 10)
+    const vigentes = promociones.filter(p =>
+      !(p.fecha_desde && p.fecha_desde > hoy) &&
+      !(p.fecha_hasta && p.fecha_hasta < hoy)
+    )
+    const map = new Map()
+    carrito.forEach(it => {
+      if (it.esLibre) return
+      const aplicables = vigentes.filter(p => promoMatchItem(p, it))
+      if (!aplicables.length) return
+      const efectos = []
+      aplicables.forEach(p => {
+        if (p.tipo === 'nxm') {
+          const gratis = Math.floor(it.cantidad / p.cantidad_lleva)
+          efectos.push(gratis > 0
+            ? { label: `${p.cantidad_lleva}×${p.cantidad_paga} — ${gratis} gratis`, activo: true }
+            : { label: `${p.cantidad_lleva}×${p.cantidad_paga} — llevá ${p.cantidad_lleva - (it.cantidad % p.cantidad_lleva || p.cantidad_lleva)} más`, activo: false }
+          )
+        } else {
+          efectos.push({
+            label: `-${p.descuento_pct}%${p.medio_pago ? ` en ${p.medio_pago.replace(/_/g,' ')}` : ''}`,
+            activo: true, condicional: !!p.medio_pago, medio: p.medio_pago,
+          })
+        }
+      })
+      if (efectos.length) map.set(it._key, efectos)
+    })
+    return map
+  }, [carrito, promociones])
+
   /* ── Totales ──
      precio_venta ya viene CON IVA incluido → extraemos el IVA del precio
      en lugar de sumarlo encima                                            */
   const totales = useMemo(() => {
     const hayEfectivo = pagos.some(p => p.medio_pago === 'efectivo')
     const descPct     = hayEfectivo && descuentoEfectivoPct > 0 ? descuentoEfectivoPct : 0
+    const hoy         = new Date().toISOString().slice(0, 10)
+    const vigentes    = promociones.filter(p =>
+      !(p.fecha_desde && p.fecha_desde > hoy) &&
+      !(p.fecha_hasta && p.fecha_hasta < hoy)
+    )
 
-    let totalBruto = 0, iva21 = 0, iva105 = 0
+    let totalBruto = 0, iva21 = 0, iva105 = 0, ahorroPromos = 0
     carrito.forEach(it => {
-      const bruto = it.precioFinal * it.cantidad           // precio con IVA × cantidad
+      const bruto = it.precioFinal * it.cantidad
       const pct   = it.esLibre ? 0 : Number(it.producto.iva_porcentaje)
       totalBruto += bruto
-      // Extraer IVA contenido en el precio: IVA = bruto - bruto / (1 + pct/100)
       if (pct === 21)   iva21  += bruto - bruto / 1.21
       if (pct === 10.5) iva105 += bruto - bruto / 1.105
+
+      if (!it.esLibre) {
+        const aplicables = vigentes.filter(p => promoMatchItem(p, it))
+        let ahorroNxm = 0, pctTotal = 0
+        aplicables.forEach(p => {
+          if (p.tipo === 'nxm') {
+            ahorroNxm += Math.floor(it.cantidad / p.cantidad_lleva) * it.precioFinal
+          } else if (p.tipo === 'descuento_pct') {
+            const mediaMatch = !p.medio_pago || pagos.some(pg => pg.medio_pago === p.medio_pago)
+            if (mediaMatch) pctTotal += Number(p.descuento_pct)
+          }
+        })
+        pctTotal = Math.min(pctTotal, 100)
+        ahorroPromos += ahorroNxm + (bruto - ahorroNxm) * pctTotal / 100
+      }
     })
 
-    const subtotalNeto = +(totalBruto - iva21 - iva105).toFixed(2)
-    const descMonto    = +(totalBruto * descPct / 100).toFixed(2)
-    const total        = +(totalBruto - descMonto).toFixed(2)
-    const totalPagos   = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
-    const diferencia   = +(totalPagos - total).toFixed(2)
-    const pagoCompleto = carrito.length > 0 && Math.abs(diferencia) < 0.01
+    const subtotalNeto     = +(totalBruto - iva21 - iva105).toFixed(2)
+    const descMonto        = +(totalBruto * descPct / 100).toFixed(2)
+    const ahorroPromosMonto = +ahorroPromos.toFixed(2)
+    const total            = +(totalBruto - descMonto - ahorroPromosMonto).toFixed(2)
+    const totalPagos       = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
+    const diferencia       = +(totalPagos - total).toFixed(2)
+    const pagoCompleto     = carrito.length > 0 && Math.abs(diferencia) < 0.01
 
-    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, total, totalPagos, diferencia, pagoCompleto }
-  }, [carrito, pagos, descuentoEfectivoPct])
+    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, ahorroPromosMonto, total, totalPagos, diferencia, pagoCompleto }
+  }, [carrito, pagos, descuentoEfectivoPct, promociones])
 
   /* ── CCs en carrito (aviso 2 comprobantes) ── */
   const ccDelCarrito = useMemo(() => {
@@ -370,7 +441,7 @@ export default function Ventas() {
         cliente_id:       clienteSeleccionado?.id || null,
         tipo_comprobante: comprobante,
         canal: 'mostrador', estado: 'completada',
-        subtotal: totales.subtotalNeto, descuento_monto: totales.descMonto,
+        subtotal: totales.subtotalNeto, descuento_monto: +(totales.descMonto + totales.ahorroPromosMonto).toFixed(2),
         recargo_monto: 0, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
       },
       itemsVenta,
@@ -624,6 +695,11 @@ export default function Ventas() {
                               <div className="carrito-item-info">
                                 <span className="carrito-item-nombre">{it.producto.nombre}</span>
                                 {it.esPromo && <span className="badge-promo">PROMO</span>}
+                                {efectosPromo.has(it._key) && efectosPromo.get(it._key).map((ef, i) => (
+                                  <span key={i} className={`badge-promo-desc${ef.activo ? '' : ' badge-promo-desc--pending'}`}>
+                                    <i className="ti ti-tag-starred" /> {ef.label}
+                                  </span>
+                                ))}
                               </div>
                             </>
                           )}
@@ -806,6 +882,12 @@ export default function Ventas() {
             )}
             {totales.iva105 > 0 && (
               <div className="total-row"><span>IVA 10.5%</span><span>{fmt$(totales.iva105)}</span></div>
+            )}
+            {totales.ahorroPromosMonto > 0 && (
+              <div className="total-row total-row--desc">
+                <span><i className="ti ti-tag-starred" /> Promos</span>
+                <span>−{fmt$(totales.ahorroPromosMonto)}</span>
+              </div>
             )}
             {totales.descMonto > 0 && (
               <div className="total-row total-row--desc">

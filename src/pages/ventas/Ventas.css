@@ -3,6 +3,27 @@
 ════════════════════════════════════════════════════════ */
 .ventas-page { max-width: var(--content-max-width); }
 
+/* ── Badges de promo en carrito ── */
+.badge-promo-desc {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  border: 0.5px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.badge-promo-desc--pending {
+  opacity: 0.55;
+  background: var(--color-bg-app);
+  color: var(--color-text-tertiary);
+  border-color: var(--color-border);
+}
+
 .tr-clickable { cursor: pointer; }
 .tr-clickable:hover td { background: color-mix(in srgb, var(--color-accent) 4%, transparent); }
 

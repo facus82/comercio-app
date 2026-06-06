@@ -5,6 +5,7 @@ import { useProductos } from '../../hooks/useProductos'
 import ProductoPanel from './ProductoPanel'
 import ImportarExcel from './ImportarExcel'
 import ActualizarPreciosModal from './ActualizarPreciosModal'
+import PromocionesModal from './PromocionesModal'
 import './Stock.css'
 
 const fmt$ = v =>
@@ -36,7 +37,8 @@ export default function Stock() {
   const [panelAbierto,    setPanelAbierto]    = useState(false)
   const [productoEditar,  setProductoEditar]  = useState(null)
   const [importando,      setImportando]      = useState(false)
-  const [actualizandoPrecios, setActualizandoPrecios] = useState(false)
+  const [actualizandoPrecios,  setActualizandoPrecios]  = useState(false)
+  const [gestionandoPromos,   setGestionandoPromos]    = useState(false)
 
   // Aplicar filtros desde URL (ej: /stock?stockBajo=1 o /stock?q=cafe)
   useEffect(() => {
@@ -152,6 +154,10 @@ export default function Stock() {
           <button className="btn" onClick={() => setActualizandoPrecios(true)}>
             <i className="ti ti-trending-up" />
             Actualizar precios
+          </button>
+          <button className="btn" onClick={() => setGestionandoPromos(true)}>
+            <i className="ti ti-tag-starred" />
+            Promociones
           </button>
           <button className="btn btn--primary" onClick={abrirNuevo}>
             <i className="ti ti-plus" />
@@ -282,6 +288,15 @@ export default function Stock() {
       )}
 
       {/* Modal actualización masiva de precios */}
+      {gestionandoPromos && (
+        <PromocionesModal
+          comercioId={comercioId}
+          categorias={categorias}
+          subcategorias={subcategorias}
+          onCerrar={() => setGestionandoPromos(false)}
+        />
+      )}
+
       {actualizandoPrecios && (
         <ActualizarPreciosModal
           productos={productos}
