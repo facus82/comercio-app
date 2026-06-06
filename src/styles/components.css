@@ -451,6 +451,37 @@
   margin: 0;
 }
 
+/* ── Lotes section ───────────────────────────────────────── */
+.lotes-section { gap: 10px; }
+
+.lotes-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lotes-section__empty {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding: 8px 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.lote-form {
+  background: var(--color-bg-card);
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

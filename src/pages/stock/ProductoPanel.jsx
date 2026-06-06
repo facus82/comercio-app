@@ -1,7 +1,30 @@
 import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../../lib/supabase'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'caja', 'pack', 'docena']
 const IVA_OPTS = [0, 10.5, 21, 27]
+
+const LOTE_ESTADO_BADGE = {
+  activo:   'badge--success',
+  agotado:  'badge--neutral',
+  vencido:  'badge--danger',
+  retirado: 'badge--neutral',
+}
+
+const fmtFecha = str => {
+  if (!str) return '—'
+  const [y, m, d] = str.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function VencimientoBadge({ fecha }) {
+  const hoy      = new Date(); hoy.setHours(0,0,0,0)
+  const vto      = new Date(fecha + 'T00:00:00')
+  const diasDiff = Math.ceil((vto - hoy) / 86400000)
+  const cls      = diasDiff < 0 ? 'badge--danger' : diasDiff <= 30 ? 'badge--warning' : 'badge--success'
+  const label    = diasDiff < 0 ? `Vencido (${fmtFecha(fecha)})` : fmtFecha(fecha)
+  return <span className={`badge ${cls}`} style={{ fontSize: 10 }}>{label}</span>
+}
 
 const fmt$ = v =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(v || 0)
@@ -63,6 +86,59 @@ export default function ProductoPanel({
   const [enPromo, setEnPromo] = useState(!!(producto?.precio_mayorista))
   const [saving, setSaving] = useState(false)
   const [error, setError]  = useState('')
+
+  /* ── Lotes ── */
+  const [lotes,         setLotes]         = useState([])
+  const [loadingLotes,  setLoadingLotes]  = useState(false)
+  const [showFormLote,  setShowFormLote]  = useState(false)
+  const [formLote,      setFormLote]      = useState({ numero_lote: '', fecha_fabricacion: '', fecha_vencimiento: '', cantidad: '', precio_costo: '' })
+  const [savingLote,    setSavingLote]    = useState(false)
+  const [errorLote,     setErrorLote]     = useState('')
+
+  useEffect(() => {
+    if (!producto?.id || !form.controla_lotes) { setLotes([]); return }
+    setLoadingLotes(true)
+    supabase.from('lotes').select('*').eq('producto_id', producto.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setLotes(data || []); setLoadingLotes(false) })
+  }, [producto?.id, form.controla_lotes])
+
+  function resetFormLote() {
+    setFormLote({ numero_lote: '', fecha_fabricacion: '', fecha_vencimiento: '', cantidad: '', precio_costo: '' })
+    setErrorLote('')
+    setShowFormLote(false)
+  }
+
+  async function handleAgregarLote(e) {
+    e.preventDefault()
+    const cant = Number(formLote.cantidad)
+    if (!cant || cant <= 0) { setErrorLote('La cantidad es obligatoria.'); return }
+    setSavingLote(true); setErrorLote('')
+
+    const { data, error: errL } = await supabase.from('lotes').insert({
+      producto_id:       producto.id,
+      numero_lote:       formLote.numero_lote.trim() || null,
+      fecha_fabricacion: formLote.fecha_fabricacion  || null,
+      fecha_vencimiento: formLote.fecha_vencimiento  || null,
+      cantidad_inicial:  cant,
+      cantidad_actual:   cant,
+      precio_costo:      formLote.precio_costo ? Number(formLote.precio_costo) : null,
+      estado:            'activo',
+    }).select().single()
+
+    if (errL) { setErrorLote(errL.message); setSavingLote(false); return }
+
+    // Actualizar stock_actual del producto si controla_stock
+    if (form.controla_stock) {
+      const nuevoStock = Number(form.stock_actual || 0) + cant
+      await supabase.from('productos').update({ stock_actual: nuevoStock }).eq('id', producto.id)
+      setForm(prev => ({ ...prev, stock_actual: nuevoStock }))
+    }
+
+    setLotes(prev => [data, ...prev])
+    resetFormLote()
+    setSavingLote(false)
+  }
 
   useEffect(() => {
     setForm(toForm(producto))
@@ -433,6 +509,121 @@ export default function ProductoPanel({
             </div>
           </div>
         </form>
+
+        {/* ── Lotes / vencimientos ── */}
+        {form.controla_lotes && (
+          <div className="form-section lotes-section">
+            <div className="lotes-section__header">
+              <p className="form-section-title" style={{ margin: 0 }}>
+                <i className="ti ti-package" /> Lotes / vencimientos
+              </p>
+              {!esNuevo && (
+                <button type="button" className="btn btn--primary"
+                  onClick={() => { setShowFormLote(v => !v); setErrorLote('') }}>
+                  <i className={`ti ${showFormLote ? 'ti-x' : 'ti-plus'}`} />
+                  {showFormLote ? 'Cancelar' : 'Agregar lote'}
+                </button>
+              )}
+            </div>
+
+            {esNuevo && (
+              <p className="field-hint" style={{ marginTop: 4 }}>
+                <i className="ti ti-info-circle" /> Guardá el producto primero para registrar lotes.
+              </p>
+            )}
+
+            {!esNuevo && showFormLote && (
+              <form onSubmit={handleAgregarLote} className="lote-form">
+                {errorLote && (
+                  <div className="error-banner"><i className="ti ti-alert-circle" /> {errorLote}</div>
+                )}
+                <div className="form-grid form-grid--3">
+                  <div className="field">
+                    <label className="field-label">N° Lote</label>
+                    <input className="field-input" placeholder="Opcional"
+                      value={formLote.numero_lote}
+                      onChange={e => setFormLote(p => ({ ...p, numero_lote: e.target.value }))}
+                      autoFocus />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Cantidad *</label>
+                    <input className="field-input" type="number" min="0.001" step="0.001" placeholder="0"
+                      value={formLote.cantidad}
+                      onChange={e => setFormLote(p => ({ ...p, cantidad: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Precio costo $</label>
+                    <input className="field-input" type="number" min="0" step="0.01" placeholder="0"
+                      value={formLote.precio_costo}
+                      onChange={e => setFormLote(p => ({ ...p, precio_costo: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Fecha fabricación</label>
+                    <input className="field-input" type="date"
+                      value={formLote.fecha_fabricacion}
+                      onChange={e => setFormLote(p => ({ ...p, fecha_fabricacion: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Fecha vencimiento</label>
+                    <input className="field-input" type="date"
+                      value={formLote.fecha_vencimiento}
+                      onChange={e => setFormLote(p => ({ ...p, fecha_vencimiento: e.target.value }))} />
+                  </div>
+                </div>
+                <button type="submit" className="btn btn--primary" disabled={savingLote}
+                  style={{ marginTop: 8 }}>
+                  <i className={`ti ${savingLote ? 'ti-loader-2' : 'ti-check'}`} />
+                  {savingLote ? 'Guardando...' : 'Guardar lote'}
+                </button>
+              </form>
+            )}
+
+            {!esNuevo && (
+              loadingLotes ? (
+                <p className="lotes-section__empty">
+                  <i className="ti ti-loader-2" /> Cargando...
+                </p>
+              ) : lotes.length === 0 ? (
+                <p className="lotes-section__empty">Sin lotes registrados.</p>
+              ) : (
+                <table className="data-table" style={{ marginTop: 8 }}>
+                  <thead>
+                    <tr>
+                      <th>N° Lote</th>
+                      <th>Fabricación</th>
+                      <th>Vencimiento</th>
+                      <th className="td-right">Cant.</th>
+                      <th className="td-right">Costo</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lotes.map(l => (
+                      <tr key={l.id}>
+                        <td className="td-mono td-muted">{l.numero_lote || '—'}</td>
+                        <td className="td-muted" style={{ fontSize: 11 }}>{fmtFecha(l.fecha_fabricacion)}</td>
+                        <td>
+                          {l.fecha_vencimiento
+                            ? <VencimientoBadge fecha={l.fecha_vencimiento} />
+                            : <span className="td-muted">—</span>}
+                        </td>
+                        <td className="td-right td-mono">{l.cantidad_actual}</td>
+                        <td className="td-right td-mono td-muted">
+                          {l.precio_costo ? `$${Number(l.precio_costo).toLocaleString('es-AR')}` : '—'}
+                        </td>
+                        <td>
+                          <span className={`badge ${LOTE_ESTADO_BADGE[l.estado] || 'badge--neutral'}`}>
+                            {l.estado}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="panel-footer">
