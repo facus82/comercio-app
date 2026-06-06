@@ -111,9 +111,13 @@ export default function ProductoPanel({
 
   async function handleAgregarLote(e) {
     e.preventDefault()
-    const cant = Number(formLote.cantidad)
-    if (!cant || cant <= 0) { setErrorLote('La cantidad es obligatoria.'); return }
+    if (!formLote.fecha_vencimiento && !formLote.fecha_fabricacion && !formLote.numero_lote.trim() && !formLote.cantidad) {
+      setErrorLote('Completá al menos un campo.')
+      return
+    }
     setSavingLote(true); setErrorLote('')
+
+    const cant = Number(formLote.cantidad) || 0
 
     const { data, error: errL } = await supabase.from('lotes').insert({
       producto_id:       producto.id,
@@ -128,11 +132,27 @@ export default function ProductoPanel({
 
     if (errL) { setErrorLote(errL.message); setSavingLote(false); return }
 
-    // Actualizar stock_actual del producto si controla_stock
-    if (form.controla_stock) {
-      const nuevoStock = Number(form.stock_actual || 0) + cant
-      await supabase.from('productos').update({ stock_actual: nuevoStock }).eq('id', producto.id)
-      setForm(prev => ({ ...prev, stock_actual: nuevoStock }))
+    const nuevoCosto = formLote.precio_costo ? Number(formLote.precio_costo) : null
+    const costoActual = Number(form.precio_costo || 0)
+
+    const updates = {}
+
+    // Solo actualiza stock si se cargó una cantidad
+    if (cant > 0 && form.controla_stock) {
+      updates.stock_actual = Number(form.stock_actual || 0) + cant
+    }
+
+    // Sube el precio_costo si el nuevo lote es más caro — nunca baja automáticamente
+    if (nuevoCosto && nuevoCosto > costoActual) {
+      updates.precio_costo = nuevoCosto
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('productos').update(updates).eq('id', producto.id)
+      setForm(prev => ({ ...prev, ...updates }))
+      if (updates.precio_costo) {
+        setCalc(prev => ({ ...prev, compra: updates.precio_costo.toFixed(2) }))
+      }
     }
 
     setLotes(prev => [data, ...prev])
@@ -546,7 +566,7 @@ export default function ProductoPanel({
                       autoFocus />
                   </div>
                   <div className="field">
-                    <label className="field-label">Cantidad *</label>
+                    <label className="field-label">Cantidad</label>
                     <input className="field-input" type="number" min="0.001" step="0.001" placeholder="0"
                       value={formLote.cantidad}
                       onChange={e => setFormLote(p => ({ ...p, cantidad: e.target.value }))} />
