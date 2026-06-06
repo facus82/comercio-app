@@ -40,7 +40,7 @@ export default function Ventas() {
   const descuentoEfectivoPct  = Number(perfil?.comercio?.descuento_efectivo_pct || 0)
   const comprobantesDisponibles = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
 
-  const { ventas, loading: loadingVentas, crear, anular } = useVentas(comercioId, perfil?.id)
+  const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id)
 
   const [vista, setVista] = useState('lista')
 
@@ -78,6 +78,19 @@ export default function Ventas() {
   /* ── Filtros lista ── */
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState(null)
+
+  /* ── Modal detalle ── */
+  const [ventaDetalle,    setVentaDetalle]    = useState(null)
+  const [loadingDetalle,  setLoadingDetalle]  = useState(false)
+
+  async function abrirDetalle(v) {
+    setLoadingDetalle(true)
+    setVentaDetalle({ ...v, items: null, _loading: true })
+    const { data, error } = await cargarDetalle(v.id)
+    if (!error && data) setVentaDetalle(data)
+    else setVentaDetalle(prev => ({ ...prev, _loading: false, _error: true }))
+    setLoadingDetalle(false)
+  }
 
   /* Sincronizar comprobante con condicion_iva */
   useEffect(() => {
@@ -847,6 +860,7 @@ export default function Ventas() {
      VISTA LISTA
   ════════════════════════════════════════════════════════ */
   return (
+    <>
     <div className="ventas-page">
       <div className="page-header">
         <h1 className="page-title">Ventas</h1>
@@ -914,7 +928,7 @@ export default function Ventas() {
             </thead>
             <tbody>
               {ventasFiltradas.map(v => (
-                <tr key={v.id}>
+                <tr key={v.id} className="tr-clickable" onClick={() => abrirDetalle(v)}>
                   <td className="td-muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFechaHora(v.fecha)}</td>
                   <td className="td-mono td-muted">{v.numero || '—'}</td>
                   <td>
@@ -954,6 +968,144 @@ export default function Ventas() {
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+
+    {ventaDetalle && (
+      <ModalDetalleVenta
+        venta={ventaDetalle}
+        onClose={() => setVentaDetalle(null)}
+        onAnular={async () => { await anular(ventaDetalle.id); setVentaDetalle(prev => ({ ...prev, estado: 'anulada' })) }}
+      />
+    )}
+    </>
+  )
+}
+
+function ModalDetalleVenta({ venta, onClose, onAnular }) {
+  const loading = venta._loading
+  const items   = venta.items || []
+  const pagos   = venta.pagos || []
+
+  const clienteNombre = venta.cliente
+    ? `${venta.cliente.nombre} ${venta.cliente.apellido || ''}`.trim()
+    : 'Consumidor final'
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-detalle">
+        <div className="modal-detalle__header">
+          <div className="modal-detalle__title">
+            <i className="ti ti-receipt" />
+            <span>{venta.numero || 'Venta'}</span>
+            <span className={`badge ${ESTADO_BADGE[venta.estado] || 'badge--neutral'}`}>{venta.estado}</span>
+          </div>
+          <button className="btn-icon" onClick={onClose}><i className="ti ti-x" /></button>
+        </div>
+
+        <div className="modal-detalle__meta">
+          <div className="modal-detalle__meta-item">
+            <i className="ti ti-calendar" />
+            <span>{fmtFechaHora(venta.fecha)}</span>
+          </div>
+          <div className="modal-detalle__meta-item">
+            <i className="ti ti-file-invoice" />
+            <span>{COMP_LABEL[venta.tipo_comprobante] || `Fact. ${venta.tipo_comprobante || 'B'}`}</span>
+          </div>
+          <div className="modal-detalle__meta-item">
+            <i className="ti ti-user" />
+            <span>{clienteNombre}</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="modal-detalle__loading">
+            <i className="ti ti-loader-2" /> Cargando detalle...
+          </div>
+        ) : (
+          <>
+            <div className="modal-detalle__section">
+              <div className="modal-detalle__section-title">Productos</div>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Descripción</th>
+                    <th className="td-right">Cant.</th>
+                    <th className="td-right">Precio unit.</th>
+                    <th className="td-right">Desc. %</th>
+                    <th className="td-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length === 0 ? (
+                    <tr><td colSpan={5} className="td-muted" style={{ textAlign: 'center' }}>Sin ítems</td></tr>
+                  ) : items.map((it, i) => (
+                    <tr key={i}>
+                      <td>{it.descripcion}</td>
+                      <td className="td-right td-mono">{it.cantidad}</td>
+                      <td className="td-right td-mono">{fmt$(it.precio_unitario)}</td>
+                      <td className="td-right td-mono">{it.descuento_pct ? `${it.descuento_pct}%` : '—'}</td>
+                      <td className="td-right td-mono" style={{ fontWeight: 500 }}>{fmt$(it.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="modal-detalle__bottom">
+              <div className="modal-detalle__pagos">
+                <div className="modal-detalle__section-title">Medios de pago</div>
+                {pagos.map((p, i) => (
+                  <div key={i} className="modal-detalle__pago-row">
+                    <span>{p.medio_pago.replace(/_/g, ' ')}</span>
+                    <span className="td-mono">{fmt$(p.monto)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="modal-detalle__totales">
+                {Number(venta.descuento_monto) > 0 && (
+                  <div className="detalle-total-row">
+                    <span>Subtotal</span><span>{fmt$(venta.subtotal)}</span>
+                  </div>
+                )}
+                {Number(venta.descuento_monto) > 0 && (
+                  <div className="detalle-total-row detalle-total-row--discount">
+                    <span>Descuento</span><span>-{fmt$(venta.descuento_monto)}</span>
+                  </div>
+                )}
+                {Number(venta.recargo_monto) > 0 && (
+                  <div className="detalle-total-row">
+                    <span>Recargo</span><span>+{fmt$(venta.recargo_monto)}</span>
+                  </div>
+                )}
+                {Number(venta.iva_monto) > 0 && (
+                  <div className="detalle-total-row td-muted">
+                    <span>IVA</span><span>{fmt$(venta.iva_monto)}</span>
+                  </div>
+                )}
+                <div className="detalle-total-row detalle-total-row--total">
+                  <span>Total</span><span>{fmt$(venta.total)}</span>
+                </div>
+              </div>
+            </div>
+
+            {venta.notas && (
+              <div className="modal-detalle__notas">
+                <i className="ti ti-notes" /> {venta.notas}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="modal-detalle__footer">
+          {venta.estado === 'completada' && (
+            <button className="btn btn--danger" onClick={onAnular}>
+              <i className="ti ti-ban" /> Anular venta
+            </button>
+          )}
+          <button className="btn" onClick={onClose}>Cerrar</button>
+        </div>
       </div>
     </div>
   )

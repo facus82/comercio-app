@@ -109,5 +109,19 @@ export function useVentas(comercioId, perfilId) {
     return { error }
   }
 
-  return { ventas, loading, error, cargar, crear, anular }
+  async function cargarDetalle(id) {
+    const { data, error } = await supabase
+      .from('ventas')
+      .select(`
+        *,
+        cliente:clientes(id, nombre, apellido, email, telefono),
+        items:venta_items(*, producto:productos(nombre, codigo)),
+        pagos:venta_pagos(medio_pago, monto, referencia)
+      `)
+      .eq('id', id)
+      .single()
+    return { data, error }
+  }
+
+  return { ventas, loading, error, cargar, crear, anular, cargarDetalle }
 }
