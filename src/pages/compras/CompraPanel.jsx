@@ -21,14 +21,16 @@ const hoy = () => new Date().toISOString().slice(0, 10)
 
 function itemVacio() {
   return {
-    _key:           Math.random().toString(36).slice(2),
-    producto_id:    '',
+    _key:            Math.random().toString(36).slice(2),
+    producto_id:     '',
     producto_nombre: '',
-    cantidad:       1,
+    controla_lotes:  false,
+    cantidad:        1,
     precio_unitario: '',
-    iva_porcentaje: 21,
-    descuento_pct:  0,
-    subtotal:       0,
+    iva_porcentaje:  21,
+    descuento_pct:   0,
+    subtotal:        0,
+    fecha_vencimiento: '',
   }
 }
 
@@ -47,6 +49,7 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
     numero_comprobante: '',
     estado:             'pendiente',
     notas:              '',
+    flete:              '',
   })
   const [items,   setItems]   = useState([itemVacio()])
   const [saving,  setSaving]  = useState(false)
@@ -93,6 +96,7 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
         ...it,
         producto_id:     prod.id,
         producto_nombre: prod.nombre,
+        controla_lotes:  prod.controla_lotes || false,
         precio_unitario: prod.precio_costo || '',
         iva_porcentaje:  prod.iva_porcentaje || 21,
       }
@@ -115,7 +119,7 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
   async function buscarProductos(q) {
     const { data } = await supabase
       .from('productos')
-      .select('id, nombre, codigo, codigo_barras, precio_costo, iva_porcentaje, unidad_medida')
+      .select('id, nombre, codigo, codigo_barras, precio_costo, iva_porcentaje, unidad_medida, controla_lotes')
       .eq('comercio_id', comercioId)
       .eq('activo', true)
       .or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%,codigo_barras.ilike.%${q}%`)
@@ -126,18 +130,23 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
 
   // ── Totales ────────────────────────────────────────────────
   const totales = useMemo(() => {
-    const subtotal = items.reduce((s, it) => s + Number(it.subtotal), 0)
-    const ivaMonto = items.reduce((s, it) => {
-      const base = Number(it.subtotal)
-      return s + base * (Number(it.iva_porcentaje) / 100)
-    }, 0)
-    const total = subtotal + ivaMonto
+    const subtotal      = items.reduce((s, it) => s + Number(it.subtotal), 0)
+    const ivaMonto      = items.reduce((s, it) => s + Number(it.subtotal) * (Number(it.iva_porcentaje) / 100), 0)
+    const fleteNum      = Number(form.flete) || 0
+    const total         = subtotal + ivaMonto + fleteNum
+    const totalUnidades = items.reduce((s, it) => s + Number(it.cantidad || 0), 0)
+    const fletePorUnidad = totalUnidades > 0 && fleteNum > 0
+      ? +(fleteNum / totalUnidades).toFixed(2)
+      : 0
     return {
-      subtotal: +subtotal.toFixed(2),
-      ivaMonto: +ivaMonto.toFixed(2),
-      total:    +total.toFixed(2),
+      subtotal:        +subtotal.toFixed(2),
+      ivaMonto:        +ivaMonto.toFixed(2),
+      fleteNum:        +fleteNum.toFixed(2),
+      total:           +total.toFixed(2),
+      totalUnidades,
+      fletePorUnidad,
     }
-  }, [items])
+  }, [items, form.flete])
 
   // ── Submit ─────────────────────────────────────────────────
   async function handleSubmit(e) {
@@ -162,6 +171,7 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
       notas:              form.notas.trim() || null,
       subtotal:           totales.subtotal,
       iva_monto:          totales.ivaMonto,
+      flete:              totales.fleteNum,
       total:              totales.total,
       descuento_monto:    0,
     }
@@ -266,6 +276,7 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
 
               {items.map((it, idx) => (
                 <div key={it._key} className="compra-item-row">
+                <div className="compra-item-grid">
                   {/* Producto */}
                   <div className="ci-prod" style={{ position: 'relative' }}>
                     {it.producto_id ? (
@@ -345,12 +356,52 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
                     <i className="ti ti-trash" />
                   </button>
                 </div>
+
+                  {it.controla_lotes && (
+                    <div className="ci-vto-row">
+                      <span className="ci-vto-label">
+                        <i className="ti ti-calendar-check" /> Fecha vencimiento
+                      </span>
+                      <input
+                        className="field-input ci-vto-input"
+                        type="date"
+                        value={it.fecha_vencimiento}
+                        onChange={e => setItem(idx, 'fecha_vencimiento', e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
 
             <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={agregarItem}>
               <i className="ti ti-plus" /> Agregar producto
             </button>
+          </div>
+
+          {/* Flete */}
+          <div className="form-section">
+            <p className="form-section-title">Flete</p>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+              <div className="field" style={{ maxWidth: 180 }}>
+                <label className="field-label">Costo de flete $</label>
+                <input
+                  className="field-input"
+                  type="number" min="0" step="0.01" placeholder="0"
+                  value={form.flete}
+                  onChange={e => setF('flete', e.target.value)}
+                />
+              </div>
+              {totales.fletePorUnidad > 0 && (
+                <div className="compra-flete-info">
+                  <i className="ti ti-truck-delivery" />
+                  <span>
+                    {fmt$(totales.fletePorUnidad)} por unidad
+                    <span className="td-muted"> ({totales.totalUnidades} unid. en total)</span>
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Totales */}
@@ -363,6 +414,12 @@ export default function CompraPanel({ proveedores, comercioId, onCrear, onCerrar
               <span>IVA</span>
               <span>{fmt$(totales.ivaMonto)}</span>
             </div>
+            {totales.fleteNum > 0 && (
+              <div className="compra-total-row">
+                <span>Flete</span>
+                <span>{fmt$(totales.fleteNum)}</span>
+              </div>
+            )}
             <div className="compra-total-row compra-total-row--total">
               <span>Total</span>
               <span>{fmt$(totales.total)}</span>
