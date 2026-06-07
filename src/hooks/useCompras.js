@@ -117,11 +117,14 @@ export function useCompras(comercioId, perfilId) {
         usuario_id:      perfilId,
       })
 
-      // Crear lote si el producto controla lotes o se cargó fecha de vencimiento
-      if (prod.controla_lotes || it.fecha_vencimiento) {
+      // Crear lote si hay datos de lote o el producto controla lotes
+      const tieneDatosLote = it.fecha_vencimiento || it.fecha_fabricacion || it.numero_lote?.trim()
+      if (prod.controla_lotes || tieneDatosLote) {
         await supabase.from('lotes').insert({
           producto_id:       it.producto_id,
-          fecha_vencimiento: it.fecha_vencimiento || null,
+          numero_lote:       it.numero_lote?.trim()  || null,
+          fecha_fabricacion: it.fecha_fabricacion    || null,
+          fecha_vencimiento: it.fecha_vencimiento    || null,
           cantidad_inicial:  Number(it.cantidad),
           cantidad_actual:   Number(it.cantidad),
           precio_costo:      costoEfectivo,

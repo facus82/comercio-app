@@ -190,10 +190,11 @@
 .cfp-vto-subrow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 2px 6px;
+  gap: 10px;
+  padding: 5px 2px 7px;
   border-top: 0.5px dashed var(--color-border);
   margin: 0 2px;
+  flex-wrap: wrap;
 }
 
 .cfp-vto-icon {
@@ -211,7 +212,29 @@
   white-space: nowrap;
 }
 
-.cfp-vto-input {
+.cfp-vto-fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.cfp-vto-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cfp-vto-field-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-tertiary);
+}
+
+.cfp-vto-field .field-input {
+  min-width: 110px;
   max-width: 160px;
 }
 
@@ -393,9 +416,24 @@
 
 .cfp-modal-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   padding-top: 4px;
+}
+
+.cfp-btn-stock {
+  font-size: 11px;
+  color: var(--color-text-secondary) !important;
+  text-decoration: none;
+}
+
+.cfp-btn-stock:hover {
+  color: var(--color-accent) !important;
+}
+
+/* Modal grid 3 columnas */
+.cfp-modal-grid {
+  grid-template-columns: 1fr 1fr 1fr;
 }
 
 /* ── Responsive móvil ────────────────────────────────────── */

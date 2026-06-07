@@ -24,17 +24,21 @@ const fmt$ = v =>
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 
+const titleCase = s => s.replace(/(?:^|\s)\S/g, c => c.toUpperCase())
+
 function itemVacio() {
   return {
-    _key:            Math.random().toString(36).slice(2),
-    producto_id:     '',
-    producto_nombre: '',
-    controla_lotes:  false,
-    cantidad:        1,
-    precio_unitario: '',
-    iva_porcentaje:  21,
-    descuento_pct:   0,
-    subtotal:        0,
+    _key:              Math.random().toString(36).slice(2),
+    producto_id:       '',
+    producto_nombre:   '',
+    controla_lotes:    false,
+    cantidad:          1,
+    precio_unitario:   '',
+    iva_porcentaje:    21,
+    descuento_pct:     0,
+    subtotal:          0,
+    numero_lote:       '',
+    fecha_fabricacion: '',
     fecha_vencimiento: '',
   }
 }
@@ -48,8 +52,16 @@ export default function CompraFormPage() {
   const navigate    = useNavigate()
   const { perfil }  = useAuth()
   const comercioId  = perfil?.comercio?.id
-  const { crear }   = useCompras(comercioId, perfil?.id)
+  const { crear }       = useCompras(comercioId, perfil?.id)
   const { proveedores } = useProveedores(comercioId)
+
+  const [centrosCostos, setCentrosCostos] = useState([])
+  useEffect(() => {
+    if (!comercioId) return
+    supabase.from('centros_costos').select('id, nombre, color')
+      .eq('comercio_id', comercioId).order('nombre')
+      .then(({ data }) => setCentrosCostos(data || []))
+  }, [comercioId])
 
   // Quitar padding/overflow del app-content para tomar toda la altura
   useLayoutEffect(() => {
@@ -231,18 +243,18 @@ export default function CompraFormPage() {
   }
 
   // ── Modal nuevo producto ──────────────────────────────────
+  const FORM_NUEVO_PROD_VACIO = {
+    nombre: '', codigo: '', codigo_barras: '', unidad_medida: 'unidad',
+    iva_porcentaje: 21, precio_venta: '', centro_costo_id: '',
+    controla_stock: true, controla_lotes: false,
+  }
+
   const [modalProd,     setModalProd]     = useState(null)
-  const [formNuevoProd, setFormNuevoProd] = useState({
-    nombre: '', codigo_barras: '', unidad_medida: 'unidad',
-    iva_porcentaje: 21, controla_stock: true, controla_lotes: false,
-  })
-  const [savingProd, setSavingProd] = useState(false)
+  const [formNuevoProd, setFormNuevoProd] = useState(FORM_NUEVO_PROD_VACIO)
+  const [savingProd,    setSavingProd]    = useState(false)
 
   function abrirModalNuevo(key, nombre) {
-    setFormNuevoProd({
-      nombre, codigo_barras: '', unidad_medida: 'unidad',
-      iva_porcentaje: 21, controla_stock: true, controla_lotes: false,
-    })
+    setFormNuevoProd({ ...FORM_NUEVO_PROD_VACIO, nombre: titleCase(nombre) })
     setModalProd({ key })
     setBuscandoKey(null)
     setResultados([])
@@ -255,16 +267,18 @@ export default function CompraFormPage() {
     const { data, error: err } = await supabase
       .from('productos')
       .insert({
-        comercio_id:    comercioId,
-        nombre:         formNuevoProd.nombre.trim(),
-        codigo_barras:  formNuevoProd.codigo_barras.trim() || null,
-        unidad_medida:  formNuevoProd.unidad_medida,
-        iva_porcentaje: Number(formNuevoProd.iva_porcentaje),
-        controla_stock: formNuevoProd.controla_stock,
-        controla_lotes: formNuevoProd.controla_lotes,
-        activo:         true,
-        precio_costo:   0,
-        precio_venta:   0,
+        comercio_id:     comercioId,
+        nombre:          formNuevoProd.nombre.trim(),
+        codigo:          formNuevoProd.codigo.trim()        || null,
+        codigo_barras:   formNuevoProd.codigo_barras.trim() || null,
+        unidad_medida:   formNuevoProd.unidad_medida,
+        iva_porcentaje:  Number(formNuevoProd.iva_porcentaje),
+        precio_venta:    Number(formNuevoProd.precio_venta)  || 0,
+        centro_costo_id: formNuevoProd.centro_costo_id      || null,
+        controla_stock:  formNuevoProd.controla_stock,
+        controla_lotes:  formNuevoProd.controla_lotes,
+        activo:          true,
+        precio_costo:    0,
       })
       .select('id, nombre, codigo, codigo_barras, precio_costo, iva_porcentaje, unidad_medida, controla_lotes')
       .single()
@@ -587,24 +601,46 @@ export default function CompraFormPage() {
                 </button>
               </div>
 
-              {/* Sub-fila de fecha vencimiento */}
+              {/* Sub-fila de lote / vencimiento */}
               {vtoVisible && (
                 <div className="cfp-vto-subrow">
                   <i className="ti ti-calendar-check cfp-vto-icon" />
-                  <span className="cfp-vto-label">Fecha vencimiento</span>
-                  <input
-                    className="field-input cfp-vto-input"
-                    type="date"
-                    autoFocus
-                    value={it.fecha_vencimiento}
-                    onChange={e => setItem(it._key, 'fecha_vencimiento', e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Tab' && !e.shiftKey && isLast) {
-                        e.preventDefault()
-                        agregarItem()
-                      }
-                    }}
-                  />
+                  <span className="cfp-vto-label">Lote / Vto.</span>
+                  <div className="cfp-vto-fields">
+                    <div className="cfp-vto-field">
+                      <label className="cfp-vto-field-label">N° Lote</label>
+                      <input
+                        className="field-input"
+                        placeholder="opcional"
+                        value={it.numero_lote}
+                        onChange={e => setItem(it._key, 'numero_lote', e.target.value)}
+                      />
+                    </div>
+                    <div className="cfp-vto-field">
+                      <label className="cfp-vto-field-label">Fabricación</label>
+                      <input
+                        className="field-input"
+                        type="date"
+                        value={it.fecha_fabricacion}
+                        onChange={e => setItem(it._key, 'fecha_fabricacion', e.target.value)}
+                      />
+                    </div>
+                    <div className="cfp-vto-field">
+                      <label className="cfp-vto-field-label">Vencimiento</label>
+                      <input
+                        className="field-input"
+                        type="date"
+                        value={it.fecha_vencimiento}
+                        onChange={e => setItem(it._key, 'fecha_vencimiento', e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Tab' && !e.shiftKey && isLast) {
+                            e.preventDefault()
+                            agregarItem()
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -668,18 +704,22 @@ export default function CompraFormPage() {
                   autoFocus
                   required
                   value={formNuevoProd.nombre}
-                  onChange={e => setFormNuevoProd(p => ({ ...p, nombre: e.target.value }))}
+                  onChange={e => setFormNuevoProd(p => ({ ...p, nombre: titleCase(e.target.value) }))}
                 />
               </div>
+
               <div className="cfp-modal-grid">
                 <div className="field">
-                  <label className="field-label">Código / barras</label>
-                  <input
-                    className="field-input"
-                    placeholder="opcional"
+                  <label className="field-label">Código interno</label>
+                  <input className="field-input" placeholder="opcional"
+                    value={formNuevoProd.codigo}
+                    onChange={e => setFormNuevoProd(p => ({ ...p, codigo: e.target.value }))} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Código de barras</label>
+                  <input className="field-input" placeholder="opcional"
                     value={formNuevoProd.codigo_barras}
-                    onChange={e => setFormNuevoProd(p => ({ ...p, codigo_barras: e.target.value }))}
-                  />
+                    onChange={e => setFormNuevoProd(p => ({ ...p, codigo_barras: e.target.value }))} />
                 </div>
                 <div className="field">
                   <label className="field-label">Unidad</label>
@@ -690,14 +730,28 @@ export default function CompraFormPage() {
                 </div>
                 <div className="field">
                   <label className="field-label">IVA %</label>
-                  <input
-                    className="field-input"
-                    type="number" min="0" step="0.5"
+                  <input className="field-input" type="number" min="0" step="0.5"
                     value={formNuevoProd.iva_porcentaje}
-                    onChange={e => setFormNuevoProd(p => ({ ...p, iva_porcentaje: e.target.value }))}
-                  />
+                    onChange={e => setFormNuevoProd(p => ({ ...p, iva_porcentaje: e.target.value }))} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Precio venta $</label>
+                  <input className="field-input" type="number" min="0" step="0.01" placeholder="0"
+                    value={formNuevoProd.precio_venta}
+                    onChange={e => setFormNuevoProd(p => ({ ...p, precio_venta: e.target.value }))} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Centro de costo</label>
+                  <select className="field-select" value={formNuevoProd.centro_costo_id}
+                    onChange={e => setFormNuevoProd(p => ({ ...p, centro_costo_id: e.target.value }))}>
+                    <option value="">— Sin asignar —</option>
+                    {centrosCostos.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
+
               <div className="cfp-modal-checks">
                 <label className="cfp-check-label">
                   <input type="checkbox" checked={formNuevoProd.controla_stock}
@@ -710,11 +764,22 @@ export default function CompraFormPage() {
                   Controla lotes / vencimiento
                 </label>
               </div>
+
               <p className="cfp-modal-hint">
                 <i className="ti ti-info-circle" />
                 El precio de costo se completará desde esta compra.
               </p>
+
               <div className="cfp-modal-footer">
+                <a
+                  href="/stock"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn cfp-btn-stock"
+                >
+                  <i className="ti ti-external-link" /> Crear completo en Stock
+                </a>
+                <div style={{ flex: 1 }} />
                 <button type="button" className="btn" onClick={() => setModalProd(null)}>
                   Cancelar
                 </button>
