@@ -79,6 +79,9 @@ export const adminOps = {
       redirectTo: `${window.location.origin}/set-password`,
     }),
 
+  setPassword: (user_id, password) =>
+    call('set_password', { user_id, password }),
+
   // ── Planes / módulos ──────────────────────────────────────────────────────
   listarPlanes: () =>
     call('listar_planes'),

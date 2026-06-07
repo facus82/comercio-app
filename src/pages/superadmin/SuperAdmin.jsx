@@ -456,11 +456,15 @@ function TabUsuarios() {
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
   const [ok,         setOk]         = useState('')
-  const [resetting,  setResetting]  = useState(null)
+  const [resetting,     setResetting]     = useState(null)
   // edición inline
-  const [editandoId, setEditandoId] = useState(null)   // userId del row expandido
-  const [formEdit,   setFormEdit]   = useState({})     // { nombre, rol, comercio_id }
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [editandoId,   setEditandoId]   = useState(null)
+  const [formEdit,     setFormEdit]     = useState({})
+  const [savingEdit,   setSavingEdit]   = useState(false)
+  // setear contraseña directa
+  const [setPwdId,     setSetPwdId]     = useState(null)
+  const [nuevaPwd,     setNuevaPwd]     = useState('')
+  const [savingPwd,    setSavingPwd]    = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -522,6 +526,21 @@ function TabUsuarios() {
       setError(e.message)
     } finally {
       setResetting(null)
+    }
+  }
+
+  async function guardarPassword(userId) {
+    if (nuevaPwd.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
+    setSavingPwd(true); setError('')
+    try {
+      await adminOps.setPassword(userId, nuevaPwd)
+      setOk('✓ Contraseña seteada correctamente.')
+      setSetPwdId(null)
+      setNuevaPwd('')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSavingPwd(false)
     }
   }
 
@@ -675,8 +694,16 @@ function TabUsuarios() {
                         <i className="ti ti-pencil" />
                       </button>
                       <button
+                        className={`btn-icon${setPwdId === u.id ? ' btn-icon--active' : ''}`}
+                        title="Setear contraseña directa (sin email)"
+                        disabled={u.rol === 'superadmin'}
+                        onClick={() => { setSetPwdId(setPwdId === u.id ? null : u.id); setNuevaPwd(''); setError('') }}
+                      >
+                        <i className="ti ti-lock" />
+                      </button>
+                      <button
                         className="btn-icon"
-                        title="Resetear contraseña"
+                        title="Enviar email de recuperación"
                         disabled={resetting === u.id}
                         onClick={() => resetPassword(u.id, u.email)}
                       >
@@ -746,6 +773,49 @@ function TabUsuarios() {
                           className="btn"
                           style={{ fontSize: 11 }}
                           onClick={() => { setEditandoId(null); setError('') }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {/* Fila expandida — setear contraseña */}
+                {setPwdId === u.id && (
+                  <tr key={`${u.id}-pwd`} className="sa-tr-expand">
+                    <td colSpan={7}>
+                      <div className="sa-inline-form">
+                        <span className="sa-inline-label">
+                          <i className="ti ti-lock" />
+                          Setear contraseña para <strong>{u.email}</strong>
+                        </span>
+                        {error && (
+                          <div className="sa-error" style={{ margin: 0 }}>
+                            <i className="ti ti-alert-circle" /> {error}
+                          </div>
+                        )}
+                        <input
+                          className="field-input"
+                          type="password"
+                          placeholder="Nueva contraseña (mín. 6 caracteres)"
+                          value={nuevaPwd}
+                          onChange={e => setNuevaPwd(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && guardarPassword(u.id)}
+                          autoFocus
+                        />
+                        <button
+                          className="btn btn--filled"
+                          style={{ fontSize: 11 }}
+                          disabled={savingPwd || nuevaPwd.length < 6}
+                          onClick={() => guardarPassword(u.id)}
+                        >
+                          <i className={`ti ${savingPwd ? 'ti-loader-2' : 'ti-check'}`} />
+                          {savingPwd ? 'Guardando...' : 'Confirmar'}
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ fontSize: 11 }}
+                          onClick={() => { setSetPwdId(null); setNuevaPwd(''); setError('') }}
                         >
                           Cancelar
                         </button>

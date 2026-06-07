@@ -251,6 +251,16 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true })
   }
 
+  if (op === 'set_password') {
+    const { user_id, password } = body as any
+    if (!user_id || !password || password.length < 6) {
+      return json({ error: 'user_id y contraseña de al menos 6 caracteres son requeridos' }, 400)
+    }
+    const { error } = await admin.auth.admin.updateUserById(user_id, { password })
+    if (error) return json({ error: error.message }, 500)
+    return json({ ok: true })
+  }
+
   if (op === 'editar_usuario') {
     const { id, nombre, rol, comercio_id } = body as any
     const update: Record<string, unknown> = {}
