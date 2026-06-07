@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useCompras } from '../../hooks/useCompras'
-import { useProveedores } from '../../hooks/useProveedores'
-import CompraPanel from './CompraPanel'
 import './Compras.css'
 
 const fmt$ = v =>
@@ -34,15 +33,14 @@ function fmtFecha(str) {
 }
 
 export default function Compras() {
-  const { perfil } = useAuth()
-  const comercioId = perfil?.comercio?.id
+  const navigate    = useNavigate()
+  const { perfil }  = useAuth()
+  const comercioId  = perfil?.comercio?.id
 
-  const { compras, loading, cargarItems, crear, actualizarEstado } = useCompras(comercioId, perfil?.id)
-  const { proveedores } = useProveedores(comercioId)
+  const { compras, loading, actualizarEstado } = useCompras(comercioId, perfil?.id)
 
-  const [busqueda,      setBusqueda]      = useState('')
-  const [filtroEstado,  setFiltroEstado]  = useState(null)
-  const [panelAbierto,  setPanelAbierto]  = useState(false)
+  const [busqueda,     setBusqueda]     = useState('')
+  const [filtroEstado, setFiltroEstado] = useState(null)
 
   const filtradas = useMemo(() => {
     const q = busqueda.toLowerCase()
@@ -101,7 +99,7 @@ export default function Compras() {
             ))}
           </div>
         </div>
-        <button className="btn btn--primary" onClick={() => setPanelAbierto(true)}>
+        <button className="btn btn--primary" onClick={() => navigate('/compras/nueva')}>
           <i className="ti ti-plus" />
           Nueva compra
         </button>
@@ -122,7 +120,7 @@ export default function Compras() {
                 : 'No hay compras registradas. Cargá la primera.'}
             </span>
             {!busqueda && !filtroEstado && (
-              <button className="btn btn--primary" onClick={() => setPanelAbierto(true)}>
+              <button className="btn btn--primary" onClick={() => navigate('/compras/nueva')}>
                 <i className="ti ti-plus" /> Nueva compra
               </button>
             )}
@@ -184,14 +182,6 @@ export default function Compras() {
         </p>
       )}
 
-      {panelAbierto && (
-        <CompraPanel
-          proveedores={proveedores}
-          comercioId={comercioId}
-          onCrear={crear}
-          onCerrar={() => setPanelAbierto(false)}
-        />
-      )}
     </div>
   )
 }

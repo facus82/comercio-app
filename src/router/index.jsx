@@ -6,6 +6,7 @@ import SetPassword from '../pages/auth/SetPassword'
 import Dashboard from '../pages/dashboard/Dashboard'
 import Stock from '../pages/stock/Stock'
 import Compras from '../pages/compras/Compras'
+import CompraFormPage from '../pages/compras/CompraFormPage'
 import Proveedores from '../pages/proveedores/Proveedores'
 import Ventas from '../pages/ventas/Ventas'
 import Presupuestos from '../pages/presupuestos/Presupuestos'
@@ -44,7 +45,8 @@ const router = createBrowserRouter([
       { path: 'caja',         element: <Caja /> },
       { path: 'presupuestos', element: <Presupuestos /> },
       { path: 'stock',        element: <Stock /> },
-      { path: 'compras',      element: <Compras /> },
+      { path: 'compras',       element: <Compras /> },
+      { path: 'compras/nueva', element: <CompraFormPage /> },
       { path: 'clientes',     element: <Clientes /> },
       { path: 'proveedores',  element: <Proveedores /> },
       { path: 'obligaciones', element: <Obligaciones /> },
