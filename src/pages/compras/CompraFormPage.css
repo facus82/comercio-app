@@ -96,10 +96,10 @@
 }
 
 /* ── Grilla de columnas ──────────────────────────────────── */
-/*    prod  qty   price  iva  desc  sub    vto    del   */
+/*    prod  qty   price  iva  desc  sub   vto-btn  del  */
 .cfp-row {
   display: grid;
-  grid-template-columns: 1fr 68px 110px 54px 54px 106px 138px 32px;
+  grid-template-columns: 1fr 68px 110px 54px 54px 106px 32px 32px;
   gap: 6px;
   align-items: center;
 }
@@ -122,14 +122,18 @@
   color: var(--color-text-secondary);
 }
 
-/* Fila de item */
-.cfp-row-item {
-  padding: 4px 0;
+/* Wrapper de item (grid + sub-fila) */
+.cfp-item-wrap {
   border-bottom: 0.5px solid var(--color-border);
 }
 
-.cfp-row-item:last-of-type {
+.cfp-item-wrap:last-of-type {
   border-bottom: none;
+}
+
+/* Fila de item */
+.cfp-row-item {
+  padding: 4px 0;
 }
 
 /* ── Celda de producto ───────────────────────────────────── */
@@ -171,6 +175,46 @@
   flex-shrink: 0;
 }
 
+/* ── Botón de vencimiento ────────────────────────────────── */
+.cfp-col-vto-btn {
+  justify-self: center;
+}
+
+.cfp-vto-btn--active {
+  color: var(--color-accent) !important;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent) !important;
+}
+
+/* ── Sub-fila de fecha vencimiento ───────────────────────── */
+.cfp-vto-subrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px 6px;
+  border-top: 0.5px dashed var(--color-border);
+  margin: 0 2px;
+}
+
+.cfp-vto-icon {
+  font-size: 13px;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.cfp-vto-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.cfp-vto-input {
+  max-width: 160px;
+}
+
 /* ── Inputs numéricos alineados a la derecha ─────────────── */
 .cfp-num {
   text-align: right;
@@ -185,6 +229,7 @@
 }
 
 /* ── Botón agregar fila ──────────────────────────────────── */
+
 .cfp-add-row {
   padding: 8px 0;
 }

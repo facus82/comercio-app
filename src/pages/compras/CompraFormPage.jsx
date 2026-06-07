@@ -84,6 +84,22 @@ export default function CompraFormPage() {
     setForm(prev => ({ ...prev, [campo]: valor }))
   }
 
+  // ── Vencimiento expandible por fila ──────────────────────
+  const [vtoExpandido, setVtoExpandido] = useState(new Set())
+
+  function toggleVto(key) {
+    setVtoExpandido(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+        setItem(key, 'fecha_vencimiento', '')
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
   // ── Búsqueda de productos ─────────────────────────────────
   const [busqProd,    setBusqProd]    = useState('')
   const [resultados,  setResultados]  = useState([])
@@ -119,6 +135,7 @@ export default function CompraFormPage() {
 
   function quitarItem(key) {
     setItems(prev => prev.filter(it => it._key !== key))
+    setVtoExpandido(prev => { const s = new Set(prev); s.delete(key); return s })
   }
 
   // ── Búsqueda ──────────────────────────────────────────────
@@ -193,6 +210,10 @@ export default function CompraFormPage() {
     setBusqProd('')
     setResultados([])
     setBuscandoKey(null)
+    // Auto-expandir vto si el producto controla lotes
+    if (prod.controla_lotes) {
+      setVtoExpandido(prev => new Set(prev).add(key))
+    }
     setTimeout(() => {
       qtyRefs.current[key]?.focus()
       qtyRefs.current[key]?.select()
@@ -201,8 +222,9 @@ export default function CompraFormPage() {
 
   function limpiarProducto(key) {
     setItems(prev => prev.map(it =>
-      it._key !== key ? it : { ...it, producto_id: '', producto_nombre: '' }
+      it._key !== key ? it : { ...it, producto_id: '', producto_nombre: '', fecha_vencimiento: '' }
     ))
+    setVtoExpandido(prev => { const s = new Set(prev); s.delete(key); return s })
     setBuscandoKey(key)
     setBusqProd('')
     setTimeout(() => searchRefs.current[key]?.focus(), 30)
@@ -422,7 +444,7 @@ export default function CompraFormPage() {
             <span className="cfp-col-iva">IVA %</span>
             <span className="cfp-col-desc">Desc. %</span>
             <span className="cfp-col-sub">Subtotal</span>
-            <span className="cfp-col-vto">Vto. producto</span>
+            <span className="cfp-col-vto-btn" title="Fecha vencimiento">Vto.</span>
             <span className="cfp-col-del" />
           </div>
 
@@ -430,9 +452,11 @@ export default function CompraFormPage() {
           {items.map((it, idx) => {
             const isLast    = idx === items.length - 1
             const showDrop  = buscandoKey === it._key && (resultados.length > 0 || busqProd.trim().length > 0)
+            const vtoVisible = vtoExpandido.has(it._key)
 
             return (
-              <div key={it._key} className="cfp-row cfp-row-item">
+              <div key={it._key} className="cfp-item-wrap">
+              <div className="cfp-row cfp-row-item">
 
                 {/* Producto */}
                 <div className="cfp-col-prod cfp-prod-cell">
@@ -541,19 +565,15 @@ export default function CompraFormPage() {
                   {fmt$(it.subtotal)}
                 </span>
 
-                {/* Fecha de vencimiento */}
-                <input
-                  className="field-input cfp-col-vto"
-                  type="date"
-                  value={it.fecha_vencimiento}
-                  onChange={e => setItem(it._key, 'fecha_vencimiento', e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Tab' && !e.shiftKey && isLast) {
-                      e.preventDefault()
-                      agregarItem()
-                    }
-                  }}
-                />
+                {/* Botón fecha vencimiento */}
+                <button
+                  type="button"
+                  className={`btn-icon cfp-col-vto-btn${vtoVisible ? ' cfp-vto-btn--active' : ''}`}
+                  title={vtoVisible ? 'Ocultar fecha vencimiento' : 'Agregar fecha vencimiento'}
+                  onClick={() => toggleVto(it._key)}
+                >
+                  <i className="ti ti-calendar-event" />
+                </button>
 
                 {/* Eliminar */}
                 <button
@@ -566,6 +586,28 @@ export default function CompraFormPage() {
                   <i className="ti ti-trash" />
                 </button>
               </div>
+
+              {/* Sub-fila de fecha vencimiento */}
+              {vtoVisible && (
+                <div className="cfp-vto-subrow">
+                  <i className="ti ti-calendar-check cfp-vto-icon" />
+                  <span className="cfp-vto-label">Fecha vencimiento</span>
+                  <input
+                    className="field-input cfp-vto-input"
+                    type="date"
+                    autoFocus
+                    value={it.fecha_vencimiento}
+                    onChange={e => setItem(it._key, 'fecha_vencimiento', e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Tab' && !e.shiftKey && isLast) {
+                        e.preventDefault()
+                        agregarItem()
+                      }
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             )
           })}
 
