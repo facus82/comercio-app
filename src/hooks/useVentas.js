@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function useVentas(comercioId, perfilId) {
+export function useVentas(comercioId, perfilId, fecha) {
   const [ventas, setVentas]   = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
@@ -9,17 +9,25 @@ export function useVentas(comercioId, perfilId) {
   useEffect(() => {
     if (!comercioId) return
     cargar()
-  }, [comercioId])
+  }, [comercioId, fecha])
 
   async function cargar() {
     setLoading(true)
     setError(null)
-    const { data, error } = await supabase
+    let q = supabase
       .from('ventas')
       .select('*, cliente:clientes(id, nombre, apellido), pagos:venta_pagos(medio_pago, monto)')
       .eq('comercio_id', comercioId)
       .order('fecha', { ascending: false })
-      .limit(200)
+      .limit(500)
+
+    if (fecha) {
+      const inicio = new Date(fecha + 'T00:00:00').toISOString()
+      const fin    = new Date(fecha + 'T23:59:59.999').toISOString()
+      q = q.gte('fecha', inicio).lte('fecha', fin)
+    }
+
+    const { data, error } = await q
     if (error) setError(error.message)
     setVentas(data || [])
     setLoading(false)

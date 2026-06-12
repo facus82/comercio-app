@@ -66,6 +66,21 @@
   color: var(--color-text-tertiary);
 }
 
+.input-date-filter {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.input-date-filter:focus {
+  border-color: var(--color-accent);
+}
+
 /* ── Filter pills ────────────────────────────────────────── */
 .pills {
   display: flex;

@@ -50,7 +50,8 @@ export default function Ventas() {
   const descuentoEfectivoPct  = Number(perfil?.comercio?.descuento_efectivo_pct || 0)
   const comprobantesDisponibles = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
 
-  const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id)
+  const [fechaFiltro, setFechaFiltro] = useState(() => new Date().toISOString().slice(0, 10))
+  const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id, fechaFiltro)
 
   const [vista, setVista] = useState('lista')
 
@@ -958,6 +959,19 @@ export default function Ventas() {
               onChange={e => setBusqueda(e.target.value)}
             />
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="date"
+              className="input-date-filter"
+              value={fechaFiltro}
+              onChange={e => setFechaFiltro(e.target.value)}
+            />
+            {fechaFiltro !== new Date().toISOString().slice(0, 10) && (
+              <button className="pill" onClick={() => setFechaFiltro(new Date().toISOString().slice(0, 10))}>
+                Hoy
+              </button>
+            )}
+          </div>
           <div className="pills">
             <button className={`pill${!filtroEstado ? ' pill--active' : ''}`} onClick={() => setFiltroEstado(null)}>Todas</button>
             <button className={`pill${filtroEstado === 'completada' ? ' pill--active' : ''}`} onClick={() => setFiltroEstado('completada')}>Completadas</button>
@@ -987,7 +1001,7 @@ export default function Ventas() {
         ) : ventasFiltradas.length === 0 ? (
           <div className="table-empty">
             <i className="ti ti-shopping-bag" />
-            <span>{busqueda || filtroEstado ? 'Sin resultados' : 'No hay ventas registradas.'}</span>
+            <span>{busqueda || filtroEstado ? 'Sin resultados' : `No hay ventas para esta fecha.`}</span>
             {!busqueda && !filtroEstado && (
               <button className="btn btn--primary" onClick={() => setVista('pos')}>
                 <i className="ti ti-plus" /> Nueva venta
