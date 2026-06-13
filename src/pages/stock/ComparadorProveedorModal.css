@@ -1,0 +1,241 @@
+/* ══════════════════════════════════════════════════
+   ComparadorProveedorModal
+   Reutiliza clases de ActualizarPreciosModal (.apm-*)
+   y agrega estilos propios (.comp-*)
+   ══════════════════════════════════════════════════ */
+
+/* Modal un poco más ancho para la tabla de 6 columnas */
+.comp-modal {
+  width: min(980px, calc(100vw - 48px));
+}
+
+/* ── Steps en el header ── */
+.comp-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.comp-steps .ti {
+  font-size: 10px;
+}
+
+.comp-step--active {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.comp-step--done {
+  color: var(--color-text-tertiary);
+}
+
+/* ── Paso 1: Upload ── */
+.comp-upload-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px 24px;
+}
+
+.comp-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 48px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--color-bg-app);
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+}
+
+.comp-dropzone:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg-app));
+}
+
+.comp-dropzone .ti {
+  font-size: 40px;
+  color: var(--color-accent);
+  opacity: 0.7;
+}
+
+.comp-dropzone p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.comp-upload-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+.comp-upload-hint .ti {
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Paso 2: Mapeo ── */
+.comp-mapeo-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.comp-mapeo-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.comp-mapeo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.field-required {
+  color: var(--color-danger, #EF4444);
+  font-weight: 600;
+}
+
+/* Preview tabla */
+.comp-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comp-preview-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.comp-preview-scroll {
+  overflow-x: auto;
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.comp-col--codigo { background: color-mix(in srgb, var(--color-warning, #F59E0B) 8%, transparent); }
+.comp-col--nombre { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.comp-col--precio { background: color-mix(in srgb, var(--color-success, #10B981) 8%, transparent); }
+
+.comp-col-tag {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--color-accent);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.comp-col-tag--precio {
+  background: var(--color-success, #10B981);
+}
+
+/* ── Paso 3: Informe ── */
+.comp-stats {
+  display: flex;
+  gap: 1px;
+  background: var(--color-border);
+  border-bottom: 0.5px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.comp-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  background: var(--color-bg-app);
+  gap: 2px;
+}
+
+.comp-stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.comp-stat-label {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.comp-stat--ok      .comp-stat-val { color: var(--color-accent); }
+.comp-stat--warn    .comp-stat-val { color: var(--color-text-tertiary); }
+.comp-stat--danger  .comp-stat-val { color: var(--color-danger,  #EF4444); }
+.comp-stat--success .comp-stat-val { color: var(--color-success, #10B981); }
+
+/* Filtros */
+.comp-filtros {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* Filas sin match */
+.comp-row--no-match {
+  opacity: 0.45;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .comp-modal {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+  }
+
+  .comp-mapeo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comp-stats {
+    flex-wrap: wrap;
+  }
+
+  .comp-stat {
+    flex: 1 0 30%;
+  }
+}

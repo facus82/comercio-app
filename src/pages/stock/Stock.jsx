@@ -6,6 +6,7 @@ import ProductoPanel from './ProductoPanel'
 import ImportarExcel from './ImportarExcel'
 import ActualizarPreciosModal from './ActualizarPreciosModal'
 import PromocionesModal from './PromocionesModal'
+import ComparadorProveedorModal from './ComparadorProveedorModal'
 import './Stock.css'
 
 const fmt$ = v =>
@@ -39,6 +40,7 @@ export default function Stock() {
   const [importando,      setImportando]      = useState(false)
   const [actualizandoPrecios,  setActualizandoPrecios]  = useState(false)
   const [gestionandoPromos,   setGestionandoPromos]    = useState(false)
+  const [comparandoProveedor, setComparandoProveedor]  = useState(false)
 
   // Aplicar filtros desde URL (ej: /stock?stockBajo=1 o /stock?q=cafe)
   useEffect(() => {
@@ -154,6 +156,10 @@ export default function Stock() {
           <button className="btn" onClick={() => setActualizandoPrecios(true)}>
             <i className="ti ti-trending-up" />
             Actualizar precios
+          </button>
+          <button className="btn" onClick={() => setComparandoProveedor(true)}>
+            <i className="ti ti-file-diff" />
+            Comparar proveedor
           </button>
           <button className="btn" onClick={() => setGestionandoPromos(true)}>
             <i className="ti ti-tag-starred" />
@@ -304,6 +310,15 @@ export default function Stock() {
           subcategorias={subcategorias}
           onActualizarMasivo={actualizarMasivo}
           onCerrar={() => setActualizandoPrecios(false)}
+        />
+      )}
+
+      {/* Modal comparador lista proveedor */}
+      {comparandoProveedor && (
+        <ComparadorProveedorModal
+          productos={productos}
+          onActualizarMasivo={actualizarMasivo}
+          onCerrar={() => setComparandoProveedor(false)}
         />
       )}
 
