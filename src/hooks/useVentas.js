@@ -33,9 +33,8 @@ export function useVentas(comercioId, perfilId, fecha) {
     setLoading(false)
   }
 
-  // datosVenta, items:[{producto_id, descripcion, cantidad, precio_unitario, descuento_pct, iva_porcentaje, subtotal}]
-  // pagos:[{medio_pago, monto, referencia}]
-  async function crear(datosVenta, items, pagos) {
+  // datosVenta, items:[{...}], pagos:[{...}], promos:[{promo_id, promo_nombre, tipo, descuento_monto}]
+  async function crear(datosVenta, items, pagos, promos = []) {
     const numero = `V-${Date.now().toString().slice(-8)}`
 
     const { data: venta, error: errV } = await supabase
@@ -106,6 +105,13 @@ export function useVentas(comercioId, perfilId, fecha) {
       })
     }))
 
+    // Promociones aplicadas
+    if (promos.length > 0) {
+      await supabase.from('venta_promociones').insert(
+        promos.map(p => ({ ...p, venta_id: venta.id }))
+      )
+    }
+
     const ventaConPagos = { ...venta, pagos: pagos.map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) })) }
     setVentas(prev => [ventaConPagos, ...prev])
     return { data: venta }
@@ -124,7 +130,8 @@ export function useVentas(comercioId, perfilId, fecha) {
         *,
         cliente:clientes(id, nombre, apellido, email, telefono),
         items:venta_items(*, producto:productos(nombre, codigo)),
-        pagos:venta_pagos(medio_pago, monto, referencia)
+        pagos:venta_pagos(medio_pago, monto, referencia),
+        promociones_aplicadas:venta_promociones(promo_id, promo_nombre, tipo, descuento_monto)
       `)
       .eq('id', id)
       .single()

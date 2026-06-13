@@ -44,6 +44,51 @@ function promoMatchItem(promo, it) {
   return false
 }
 
+// Calcula qué promociones se aplicaron y cuánto ahorró cada una
+function calcularPromosAplicadas(carrito, pagos, promociones) {
+  const hoy = new Date().toISOString().slice(0, 10)
+  const vigentes = promociones.filter(p =>
+    !(p.fecha_desde && p.fecha_desde > hoy) &&
+    !(p.fecha_hasta && p.fecha_hasta < hoy)
+  )
+  const map = new Map() // promo.id -> { promo, descuento }
+
+  carrito.forEach(it => {
+    if (it.esLibre) return
+    const bruto = it.precioFinal * it.cantidad
+    const aplicables = vigentes.filter(p => promoMatchItem(p, it))
+
+    let ahorroNxm = 0
+    aplicables.forEach(p => {
+      if (p.tipo !== 'nxm') return
+      const ahorro = Math.floor(it.cantidad / p.cantidad_lleva) * it.precioFinal
+      ahorroNxm += ahorro
+      const prev = map.get(p.id) || { promo: p, descuento: 0 }
+      map.set(p.id, { ...prev, descuento: prev.descuento + ahorro })
+    })
+
+    const pctPromos = aplicables.filter(p =>
+      p.tipo === 'descuento_pct' &&
+      (!p.medio_pago || pagos.some(pg => pg.medio_pago === p.medio_pago))
+    )
+    const base = bruto - ahorroNxm
+    pctPromos.forEach(p => {
+      const ahorro = base * Number(p.descuento_pct) / 100
+      const prev = map.get(p.id) || { promo: p, descuento: 0 }
+      map.set(p.id, { ...prev, descuento: prev.descuento + ahorro })
+    })
+  })
+
+  return [...map.values()]
+    .filter(({ descuento }) => descuento > 0.001)
+    .map(({ promo, descuento }) => ({
+      promo_id:       promo.id,
+      promo_nombre:   promo.nombre,
+      tipo:           promo.tipo,
+      descuento_monto: +descuento.toFixed(2),
+    }))
+}
+
 export default function Ventas() {
   const { perfil } = useAuth()
   const comercioId            = perfil?.comercio?.id
@@ -437,6 +482,8 @@ export default function Ventas() {
         }
     )
 
+    const promosAplicadas = calcularPromosAplicadas(carrito, pagos, promociones)
+
     const res = await crear(
       {
         cliente_id:       clienteSeleccionado?.id || null,
@@ -446,7 +493,8 @@ export default function Ventas() {
         recargo_monto: 0, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
       },
       itemsVenta,
-      pagos.filter(p => Number(p.monto) > 0).map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) }))
+      pagos.filter(p => Number(p.monto) > 0).map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) })),
+      promosAplicadas,
     )
     setSaving(false)
     if (res.error) setError(res.error.message || 'Error al guardar.')
@@ -1079,9 +1127,10 @@ export default function Ventas() {
 }
 
 function ModalDetalleVenta({ venta, onClose, onAnular }) {
-  const loading = venta._loading
-  const items   = venta.items || []
-  const pagos   = venta.pagos || []
+  const loading  = venta._loading
+  const items    = venta.items || []
+  const pagos    = venta.pagos || []
+  const promos   = venta.promociones_aplicadas || []
 
   const clienteNombre = venta.cliente
     ? `${venta.cliente.nombre} ${venta.cliente.apellido || ''}`.trim()
@@ -1157,6 +1206,20 @@ function ModalDetalleVenta({ venta, onClose, onAnular }) {
                     <span className="td-mono">{fmt$(p.monto)}</span>
                   </div>
                 ))}
+                {promos.length > 0 && (
+                  <>
+                    <div className="modal-detalle__section-title" style={{ marginTop: 12 }}>Promociones aplicadas</div>
+                    {promos.map((p, i) => (
+                      <div key={i} className="modal-detalle__pago-row">
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <i className="ti ti-tag" style={{ fontSize: 13, color: 'var(--color-accent)' }} />
+                          {p.promo_nombre}
+                        </span>
+                        <span className="td-mono" style={{ color: 'var(--color-success)' }}>-{fmt$(p.descuento_monto)}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
 
               <div className="modal-detalle__totales">
