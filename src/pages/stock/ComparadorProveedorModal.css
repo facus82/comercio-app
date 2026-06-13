@@ -483,7 +483,7 @@
 
 .comp-prov-banner .ti { font-size: 14px; }
 
-/* Stats — tarjetas horizontales */
+/* Stats — tarjetas clickeables */
 .comp-stats {
   display: flex;
   gap: 10px;
@@ -491,6 +491,7 @@
   background: var(--color-bg-app);
   border-bottom: 0.5px solid var(--color-border);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .comp-stat {
@@ -503,10 +504,28 @@
   border: 0.5px solid var(--color-border);
   border-radius: 10px;
   gap: 4px;
-  transition: border-color 0.15s;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  min-width: 80px;
 }
 
-.comp-stat:hover { border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border)); }
+.comp-stat:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 3%, var(--color-bg-card));
+}
+
+/* Estado activo de la stat card */
+.comp-stat--active {
+  border-width: 1.5px !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+
+.comp-stat--ok.comp-stat--active      { border-color: var(--color-accent) !important; background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-card)); }
+.comp-stat--danger.comp-stat--active  { border-color: var(--color-danger, #EF4444) !important; background: color-mix(in srgb, var(--color-danger, #EF4444) 7%, var(--color-bg-card)); }
+.comp-stat--success.comp-stat--active { border-color: var(--color-success, #10B981) !important; background: color-mix(in srgb, var(--color-success, #10B981) 7%, var(--color-bg-card)); }
+.comp-stat--warn.comp-stat--active    { border-color: var(--color-warning, #F59E0B) !important; background: color-mix(in srgb, var(--color-warning, #F59E0B) 7%, var(--color-bg-card)); }
+.comp-stat--active:not(.comp-stat--ok):not(.comp-stat--danger):not(.comp-stat--success):not(.comp-stat--warn) { border-color: var(--color-text-secondary) !important; }
 
 .comp-stat-icon {
   font-size: 16px;
@@ -537,14 +556,22 @@
 .comp-stat--success .comp-stat-val  { color: var(--color-success, #10B981); }
 .comp-stat--success .comp-stat-icon { color: var(--color-success, #10B981); }
 
-/* Filtros */
+/* Filtros de categoría */
 .comp-filtros {
   display: flex;
-  gap: 6px;
-  padding: 10px 20px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
   border-bottom: 0.5px solid var(--color-border);
   flex-shrink: 0;
   background: var(--color-bg-card);
+  flex-wrap: wrap;
+}
+
+.comp-filtro-cat {
+  min-width: 160px;
+  max-width: 220px;
+  font-size: 12px;
 }
 
 /* Filas sin match */

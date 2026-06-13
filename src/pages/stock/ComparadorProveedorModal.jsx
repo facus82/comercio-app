@@ -87,7 +87,7 @@ const PASOS = [
   { id: 'informe', label: 'Informe'  },
 ]
 
-export default function ComparadorProveedorModal({ productos, proveedores = [], comercioId, onActualizarMasivo, onCerrar }) {
+export default function ComparadorProveedorModal({ productos, proveedores = [], categorias = [], subcategorias = [], comercioId, onActualizarMasivo, onCerrar }) {
   const [paso,           setPaso]           = useState('upload')
   const [filas,          setFilas]          = useState([])
   const [columnas,       setColumnas]       = useState([])
@@ -101,8 +101,10 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
   const [errUpload,      setErrUpload]      = useState('')
   const [saving,         setSaving]         = useState(false)
   const [saveError,      setSaveError]      = useState('')
-  const [seleccionados,  setSeleccionados]  = useState(new Set())
-  const [filtro,         setFiltro]         = useState('todos')
+  const [seleccionados,     setSeleccionados]     = useState(new Set())
+  const [filtro,            setFiltro]            = useState('emparejados')
+  const [filtroCategoria,   setFiltroCategoria]   = useState('')
+  const [filtroSubcategoria,setFiltroSubcategoria]= useState('')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -190,10 +192,21 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
   }, [paso, filas, colCodigo, colNombre, colPrecio, colPrecio2, precioAplicar, productos])
 
   const informeFiltrado = useMemo(() => {
-    if (filtro === 'emparejados') return informe.filter(r => r.producto)
-    if (filtro === 'sin_match')   return informe.filter(r => !r.producto)
-    return informe
-  }, [informe, filtro])
+    let result = informe
+
+    // Filtro principal (stat cards)
+    if      (filtro === 'emparejados') result = result.filter(r => r.producto)
+    else if (filtro === 'sin_match')   result = result.filter(r => !r.producto)
+    else if (filtro === 'subieron')    result = result.filter(r => r.producto && r.variacion !== null && r.variacion > 0.5)
+    else if (filtro === 'bajaron')     result = result.filter(r => r.producto && r.variacion !== null && r.variacion < -0.5)
+    else if (filtro === 'sin_cambio')  result = result.filter(r => r.producto && r.variacion !== null && Math.abs(r.variacion) <= 0.5)
+
+    // Filtros de categoría (solo aplican a emparejados)
+    if (filtroCategoria)    result = result.filter(r => r.producto?.categoria_id    === filtroCategoria)
+    if (filtroSubcategoria) result = result.filter(r => r.producto?.subcategoria_id === filtroSubcategoria)
+
+    return result
+  }, [informe, filtro, filtroCategoria, filtroSubcategoria])
 
   const stats = useMemo(() => ({
     total:       informe.length,
@@ -552,49 +565,35 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
               ) : null
             })()}
 
-            {/* Stats */}
+            {/* Stats — cada card es un filtro clickeable */}
             <div className="comp-stats">
-              <div className="comp-stat">
-                <i className="ti ti-list comp-stat-icon" />
-                <span className="comp-stat-val">{stats.total}</span>
-                <span className="comp-stat-label">Filas</span>
-              </div>
-              <div className="comp-stat comp-stat--ok">
-                <i className="ti ti-link comp-stat-icon" />
-                <span className="comp-stat-val">{stats.emparejados}</span>
-                <span className="comp-stat-label">Emparejados</span>
-              </div>
-              <div className="comp-stat comp-stat--warn">
-                <i className="ti ti-unlink comp-stat-icon" />
-                <span className="comp-stat-val">{stats.sinMatch}</span>
-                <span className="comp-stat-label">Sin coincidencia</span>
-              </div>
-              <div className="comp-stat comp-stat--danger">
-                <i className="ti ti-trending-up comp-stat-icon" />
-                <span className="comp-stat-val">{stats.subieron}</span>
-                <span className="comp-stat-label">Subieron</span>
-              </div>
-              <div className="comp-stat comp-stat--success">
-                <i className="ti ti-trending-down comp-stat-icon" />
-                <span className="comp-stat-val">{stats.bajaron}</span>
-                <span className="comp-stat-label">Bajaron</span>
-              </div>
+              {[
+                { key: 'todos',      val: stats.total,       label: 'Total lista',     icon: 'ti-list',         cls: ''            },
+                { key: 'emparejados',val: stats.emparejados, label: 'En catálogo',     icon: 'ti-link',         cls: 'comp-stat--ok'      },
+                { key: 'subieron',   val: stats.subieron,    label: 'Subieron',        icon: 'ti-trending-up',  cls: 'comp-stat--danger'  },
+                { key: 'bajaron',    val: stats.bajaron,     label: 'Bajaron',         icon: 'ti-trending-down',cls: 'comp-stat--success' },
+                { key: 'sin_match',  val: stats.sinMatch,    label: 'Sin coincidencia',icon: 'ti-unlink',       cls: 'comp-stat--warn'    },
+              ].map(s => (
+                <button
+                  key={s.key}
+                  className={`comp-stat ${s.cls}${filtro === s.key ? ' comp-stat--active' : ''}`}
+                  onClick={() => { setFiltro(s.key); setFiltroCategoria(''); setFiltroSubcategoria('') }}
+                >
+                  <i className={`ti ${s.icon} comp-stat-icon`} />
+                  <span className="comp-stat-val">{s.val}</span>
+                  <span className="comp-stat-label">{s.label}</span>
+                </button>
+              ))}
 
-              {/* Selector qué precio aplicar — solo si hay doble precio */}
+              {/* Selector lista/contado — solo con doble precio */}
               {hayDoble && (
                 <div className="comp-stat comp-precio-selector">
-                  <span className="comp-stat-label" style={{ marginBottom: 6 }}>Precio a comparar / aplicar</span>
+                  <span className="comp-stat-label" style={{ marginBottom: 6 }}>Aplicar precio</span>
                   <div className="comp-precio-pills">
-                    <button
-                      className={`pill${precioAplicar === 'lista' ? ' pill--active' : ''}`}
-                      onClick={() => setPrecioAplicar('lista')}
-                    >
+                    <button className={`pill${precioAplicar === 'lista' ? ' pill--active' : ''}`} onClick={() => setPrecioAplicar('lista')}>
                       <i className="ti ti-tag-starred" /> Lista
                     </button>
-                    <button
-                      className={`pill${precioAplicar === 'contado' ? ' pill--active' : ''}`}
-                      onClick={() => setPrecioAplicar('contado')}
-                    >
+                    <button className={`pill${precioAplicar === 'contado' ? ' pill--active' : ''}`} onClick={() => setPrecioAplicar('contado')}>
                       <i className="ti ti-currency-dollar" /> Contado
                     </button>
                   </div>
@@ -602,21 +601,42 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
               )}
             </div>
 
-            {/* Filtros */}
+            {/* Filtros de categoría */}
             <div className="comp-filtros">
-              {[
-                { val: 'todos',       label: 'Todos' },
-                { val: 'emparejados', label: 'Emparejados' },
-                { val: 'sin_match',   label: 'Sin coincidencia' },
-              ].map(f => (
-                <button
-                  key={f.val}
-                  className={`pill${filtro === f.val ? ' pill--active' : ''}`}
-                  onClick={() => setFiltro(f.val)}
+              {categorias.length > 0 && (
+                <select
+                  className="field-select comp-filtro-cat"
+                  value={filtroCategoria}
+                  onChange={e => { setFiltroCategoria(e.target.value); setFiltroSubcategoria('') }}
                 >
-                  {f.label}
+                  <option value="">Todas las categorías</option>
+                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              )}
+              {filtroCategoria && subcategorias.filter(s => s.categoria_id === filtroCategoria).length > 0 && (
+                <select
+                  className="field-select comp-filtro-cat"
+                  value={filtroSubcategoria}
+                  onChange={e => setFiltroSubcategoria(e.target.value)}
+                >
+                  <option value="">Todas las subcategorías</option>
+                  {subcategorias.filter(s => s.categoria_id === filtroCategoria).map(s => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              )}
+              {(filtroCategoria || filtroSubcategoria) && (
+                <button className="btn-icon" title="Limpiar filtro de categoría"
+                  onClick={() => { setFiltroCategoria(''); setFiltroSubcategoria('') }}>
+                  <i className="ti ti-x" />
                 </button>
-              ))}
+              )}
+              {informeFiltrado.length > 0 && (
+                <span className="td-muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+                  {informeFiltrado.filter(r => r.producto).length} producto{informeFiltrado.filter(r => r.producto).length !== 1 ? 's' : ''}
+                  {filtroCategoria ? ` en ${categorias.find(c => c.id === filtroCategoria)?.nombre || ''}` : ''}
+                </span>
+              )}
             </div>
 
             {/* Tabla */}
