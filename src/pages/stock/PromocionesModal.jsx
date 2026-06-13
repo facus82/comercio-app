@@ -31,6 +31,8 @@ function formVacio() {
     fecha_desde: '', fecha_hasta: '', combina: true,
     descuento_pct: '', medio_pago: '',
     cantidad_lleva: '2', cantidad_paga: '1',
+    cantidad_min: '5', precio_bundle: '',
+    precio_final: '',
     aplica_a: 'todo',
     categoria_id: '', subcategoria_id: '',
     producto_id: '', producto_nombre: '',
@@ -71,6 +73,10 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
   function setF(k, v) {
     setForm(prev => {
       const next = { ...prev, [k]: v }
+      if (k === 'tipo' && v === 'precio_qty') {
+        next.aplica_a = 'producto'
+        next.categoria_id = ''; next.subcategoria_id = ''
+      }
       if (k === 'aplica_a') {
         next.categoria_id = ''; next.subcategoria_id = ''
         next.producto_id = ''; next.producto_nombre = ''
@@ -93,6 +99,8 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
       combina: p.combina,
       descuento_pct: p.descuento_pct ?? '', medio_pago: p.medio_pago || '',
       cantidad_lleva: String(p.cantidad_lleva ?? 2), cantidad_paga: String(p.cantidad_paga ?? 1),
+      cantidad_min: String(p.cantidad_min ?? 5), precio_bundle: p.precio_bundle ?? '',
+      precio_final: p.precio_final ?? '',
       aplica_a: p.aplica_a,
       categoria_id: p.categoria_id || '', subcategoria_id: p.subcategoria_id || '',
       producto_id: p.producto_id || '', producto_nombre: p.producto?.nombre || '',
@@ -116,10 +124,12 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.nombre.trim())                                           { setError('El nombre es obligatorio.'); return }
-    if (form.tipo === 'descuento_pct' && !Number(form.descuento_pct)) { setError('Ingresá el % de descuento.'); return }
+    if (form.tipo === 'descuento_pct' && !Number(form.descuento_pct) && !Number(form.precio_final)) { setError('Ingresá el % de descuento o el precio final.'); return }
     if (form.tipo === 'nxm' && Number(form.cantidad_paga) >= Number(form.cantidad_lleva)) {
       setError('"Paga" debe ser menor que "Lleva".'); return
     }
+    if (form.tipo === 'precio_qty' && Number(form.cantidad_min) < 2) { setError('La cantidad mínima debe ser al menos 2.'); return }
+    if (form.tipo === 'precio_qty' && !Number(form.precio_bundle))    { setError('Ingresá el precio total del conjunto.'); return }
     if (form.aplica_a === 'categoria'    && !form.categoria_id)    { setError('Seleccioná una categoría.'); return }
     if (form.aplica_a === 'subcategoria' && !form.subcategoria_id) { setError('Seleccioná una subcategoría.'); return }
     if (form.aplica_a === 'producto'     && !form.producto_id)     { setError('Seleccioná un producto.'); return }
@@ -129,11 +139,14 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
       nombre: form.nombre.trim(), tipo: form.tipo, activo: form.activo,
       fecha_desde: form.fecha_desde || null, fecha_hasta: form.fecha_hasta || null,
       combina: form.combina,
-      descuento_pct:   form.tipo === 'descuento_pct' ? Number(form.descuento_pct) : null,
+      descuento_pct:   form.tipo === 'descuento_pct' ? (Number(form.descuento_pct) || null) : null,
       medio_pago:      form.tipo === 'descuento_pct' && form.medio_pago ? form.medio_pago : null,
-      cantidad_lleva:  form.tipo === 'nxm' ? Number(form.cantidad_lleva) : null,
-      cantidad_paga:   form.tipo === 'nxm' ? Number(form.cantidad_paga)  : null,
-      aplica_a: form.aplica_a,
+      cantidad_lleva:  form.tipo === 'nxm'        ? Number(form.cantidad_lleva)  : null,
+      cantidad_paga:   form.tipo === 'nxm'        ? Number(form.cantidad_paga)   : null,
+      cantidad_min:    form.tipo === 'precio_qty' ? Number(form.cantidad_min)    : null,
+      precio_bundle:   form.tipo === 'precio_qty' ? Number(form.precio_bundle)   : null,
+      precio_final:    form.tipo !== 'precio_qty' && Number(form.precio_final) ? Number(form.precio_final) : null,
+      aplica_a: form.tipo === 'precio_qty' ? 'producto' : form.aplica_a,
       categoria_id:    form.aplica_a === 'categoria'    ? form.categoria_id    : null,
       subcategoria_id: form.aplica_a === 'subcategoria' ? form.subcategoria_id : null,
       producto_id:     form.aplica_a === 'producto'     ? form.producto_id     : null,
@@ -204,6 +217,7 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
                     <select className="field-select" value={form.tipo} onChange={e => setF('tipo', e.target.value)}>
                       <option value="descuento_pct">% Descuento</option>
                       <option value="nxm">N×M (ej: 2×1)</option>
+                      <option value="precio_qty">Precio por cantidad</option>
                     </select>
                   </div>
                 </div>
@@ -212,7 +226,7 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
                 {form.tipo === 'descuento_pct' ? (
                   <div className="form-grid">
                     <div className="field" style={{ maxWidth: 160 }}>
-                      <label className="field-label">Descuento % *</label>
+                      <label className="field-label">Descuento %{!Number(form.precio_final) ? ' *' : ''}</label>
                       <input className="field-input" type="number" min="0.5" max="100" step="0.5"
                         placeholder="10" value={form.descuento_pct}
                         onChange={e => setF('descuento_pct', e.target.value)} />
@@ -223,6 +237,31 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
                         {MEDIOS_PAGO_OPTS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                       </select>
                     </div>
+                    <div className="field" style={{ maxWidth: 170 }}>
+                      <label className="field-label">O precio final/u. (opc.)</label>
+                      <input className="field-input" type="number" min="0.01" step="0.01"
+                        placeholder="Precio final por unidad"
+                        value={form.precio_final} onChange={e => setF('precio_final', e.target.value)} />
+                    </div>
+                  </div>
+                ) : form.tipo === 'precio_qty' ? (
+                  <div className="promo-nxm-row">
+                    <div className="field" style={{ maxWidth: 140 }}>
+                      <label className="field-label">Cantidad mín. *</label>
+                      <input className="field-input" type="number" min="2" step="1"
+                        value={form.cantidad_min} onChange={e => setF('cantidad_min', e.target.value)} />
+                    </div>
+                    <div className="field" style={{ maxWidth: 200 }}>
+                      <label className="field-label">Precio total del conjunto *</label>
+                      <input className="field-input" type="number" min="0.01" step="0.01"
+                        placeholder="Ej: 400" value={form.precio_bundle}
+                        onChange={e => setF('precio_bundle', e.target.value)} />
+                    </div>
+                    {Number(form.cantidad_min) >= 2 && Number(form.precio_bundle) > 0 && (
+                      <span className="promo-nxm-badge">
+                        {form.cantidad_min} u. → ${Number(form.precio_bundle).toLocaleString('es-AR')}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div className="promo-nxm-row">
@@ -241,10 +280,17 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
                         {form.cantidad_lleva}×{form.cantidad_paga}
                       </span>
                     )}
+                    <div className="field" style={{ maxWidth: 170 }}>
+                      <label className="field-label">Precio final/u. (opc.)</label>
+                      <input className="field-input" type="number" min="0.01" step="0.01"
+                        placeholder="Precio final por unidad"
+                        value={form.precio_final} onChange={e => setF('precio_final', e.target.value)} />
+                    </div>
                   </div>
                 )}
 
-                {/* Aplica a */}
+                {/* Aplica a — oculto para precio_qty (siempre requiere producto) */}
+                {form.tipo !== 'precio_qty' && (
                 <div className="field">
                   <label className="field-label">Aplica a</label>
                   <div className="pills">
@@ -257,6 +303,7 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
                     ))}
                   </div>
                 </div>
+                )}
 
                 {form.aplica_a === 'categoria' && (
                   <div className="field" style={{ maxWidth: 280 }}>
@@ -383,8 +430,16 @@ export default function PromocionesModal({ comercioId, categorias, subcategorias
                         <tr key={p.id}>
                           <td style={{ fontWeight: 500 }}>{p.nombre}</td>
                           <td>
-                            <span className={`badge ${p.tipo === 'nxm' ? 'badge--info' : 'badge--success'}`} style={{ fontSize: 10 }}>
-                              {p.tipo === 'nxm' ? `${p.cantidad_lleva}×${p.cantidad_paga}` : `-${p.descuento_pct}%`}
+                            <span className={`badge ${p.tipo === 'nxm' ? 'badge--info' : p.tipo === 'precio_qty' ? 'badge--warning' : 'badge--success'}`} style={{ fontSize: 10 }}>
+                              {p.tipo === 'nxm'
+                                ? p.precio_final
+                                  ? `${p.cantidad_lleva}×${p.cantidad_paga} → $${Number(p.precio_final).toLocaleString('es-AR')}`
+                                  : `${p.cantidad_lleva}×${p.cantidad_paga}`
+                                : p.tipo === 'precio_qty'
+                                ? `${p.cantidad_min} u. → $${Number(p.precio_bundle).toLocaleString('es-AR')}`
+                                : p.precio_final
+                                  ? `→ $${Number(p.precio_final).toLocaleString('es-AR')}`
+                                  : `-${p.descuento_pct}%`}
                             </span>
                           </td>
                           <td style={{ fontSize: 11 }}>

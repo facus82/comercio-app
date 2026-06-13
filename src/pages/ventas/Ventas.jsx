@@ -58,22 +58,43 @@ function calcularPromosAplicadas(carrito, pagos, promociones) {
     const bruto = it.precioFinal * it.cantidad
     const aplicables = vigentes.filter(p => promoMatchItem(p, it))
 
-    let ahorroNxm = 0
+    let ahorroNxm = 0, ahorroQty = 0
     aplicables.forEach(p => {
-      if (p.tipo !== 'nxm') return
-      const ahorro = Math.floor(it.cantidad / p.cantidad_lleva) * it.precioFinal
-      ahorroNxm += ahorro
-      const prev = map.get(p.id) || { promo: p, descuento: 0 }
-      map.set(p.id, { ...prev, descuento: prev.descuento + ahorro })
+      if (p.tipo === 'nxm') {
+        let ahorro
+        if (p.precio_final != null && it.cantidad >= p.cantidad_lleva) {
+          ahorro = it.cantidad * Math.max(0, it.precioFinal - Number(p.precio_final))
+        } else {
+          ahorro = Math.floor(it.cantidad / p.cantidad_lleva) * it.precioFinal
+        }
+        if (ahorro <= 0) return
+        ahorroNxm += ahorro
+        const prev = map.get(p.id) || { promo: p, descuento: 0 }
+        map.set(p.id, { ...prev, descuento: prev.descuento + ahorro })
+      } else if (p.tipo === 'precio_qty' && p.cantidad_min >= 2) {
+        const grupos = Math.floor(it.cantidad / p.cantidad_min)
+        if (grupos < 1) return
+        const ahorro = grupos * (p.cantidad_min * it.precioFinal - Number(p.precio_bundle))
+        if (ahorro <= 0) return
+        ahorroQty += ahorro
+        const prev = map.get(p.id) || { promo: p, descuento: 0 }
+        map.set(p.id, { ...prev, descuento: prev.descuento + ahorro })
+      }
     })
 
     const pctPromos = aplicables.filter(p =>
       p.tipo === 'descuento_pct' &&
       (!p.medio_pago || pagos.some(pg => pg.medio_pago === p.medio_pago))
     )
-    const base = bruto - ahorroNxm
+    const base = bruto - ahorroNxm - ahorroQty
     pctPromos.forEach(p => {
-      const ahorro = base * Number(p.descuento_pct) / 100
+      let ahorro
+      if (p.precio_final != null) {
+        ahorro = it.cantidad * Math.max(0, it.precioFinal - Number(p.precio_final))
+      } else {
+        ahorro = base * Number(p.descuento_pct) / 100
+      }
+      if (ahorro <= 0) return
       const prev = map.get(p.id) || { promo: p, descuento: 0 }
       map.set(p.id, { ...prev, descuento: prev.descuento + ahorro })
     })
@@ -373,16 +394,40 @@ export default function Ventas() {
       const efectos = []
       aplicables.forEach(p => {
         if (p.tipo === 'nxm') {
-          const gratis = Math.floor(it.cantidad / p.cantidad_lleva)
-          efectos.push(gratis > 0
-            ? { label: `${p.cantidad_lleva}×${p.cantidad_paga} — ${gratis} gratis`, activo: true }
-            : { label: `${p.cantidad_lleva}×${p.cantidad_paga} — llevá ${p.cantidad_lleva - (it.cantidad % p.cantidad_lleva || p.cantidad_lleva)} más`, activo: false }
+          const activo = it.cantidad >= p.cantidad_lleva
+          if (p.precio_final != null) {
+            const falta = p.cantidad_lleva - (it.cantidad % p.cantidad_lleva || p.cantidad_lleva)
+            efectos.push(activo
+              ? { label: `${p.cantidad_lleva}×${p.cantidad_paga} → ${fmt$(p.precio_final)} c/u`, activo: true }
+              : { label: `${p.cantidad_lleva}×${p.cantidad_paga} → ${fmt$(p.precio_final)} — llevá ${falta} más`, activo: false }
+            )
+          } else {
+            const gratis = Math.floor(it.cantidad / p.cantidad_lleva)
+            const falta  = p.cantidad_lleva - (it.cantidad % p.cantidad_lleva || p.cantidad_lleva)
+            efectos.push(gratis > 0
+              ? { label: `${p.cantidad_lleva}×${p.cantidad_paga} — ${gratis} gratis`, activo: true }
+              : { label: `${p.cantidad_lleva}×${p.cantidad_paga} — llevá ${falta} más`, activo: false }
+            )
+          }
+        } else if (p.tipo === 'precio_qty' && p.cantidad_min >= 2) {
+          const grupos = Math.floor(it.cantidad / p.cantidad_min)
+          const falta  = p.cantidad_min - (it.cantidad % p.cantidad_min || p.cantidad_min)
+          efectos.push(grupos > 0
+            ? { label: `${p.cantidad_min} u. → ${fmt$(p.precio_bundle)} — ${grupos === 1 ? '1 conjunto' : `${grupos} conjuntos`}`, activo: true }
+            : { label: `${p.cantidad_min} u. → ${fmt$(p.precio_bundle)} — llevá ${falta} más`, activo: false }
           )
         } else {
-          efectos.push({
-            label: `-${p.descuento_pct}%${p.medio_pago ? ` en ${p.medio_pago.replace(/_/g,' ')}` : ''}`,
-            activo: true, condicional: !!p.medio_pago, medio: p.medio_pago,
-          })
+          if (p.precio_final != null) {
+            efectos.push({
+              label: `→ ${fmt$(p.precio_final)} c/u${p.medio_pago ? ` en ${p.medio_pago.replace(/_/g,' ')}` : ''}`,
+              activo: true, condicional: !!p.medio_pago, medio: p.medio_pago,
+            })
+          } else {
+            efectos.push({
+              label: `-${p.descuento_pct}%${p.medio_pago ? ` en ${p.medio_pago.replace(/_/g,' ')}` : ''}`,
+              activo: true, condicional: !!p.medio_pago, medio: p.medio_pago,
+            })
+          }
         }
       })
       if (efectos.length) map.set(it._key, efectos)
@@ -412,17 +457,35 @@ export default function Ventas() {
 
       if (!it.esLibre) {
         const aplicables = vigentes.filter(p => promoMatchItem(p, it))
-        let ahorroNxm = 0, pctTotal = 0
+        let ahorroNxm = 0, ahorroQty = 0, pctTotal = 0
         aplicables.forEach(p => {
           if (p.tipo === 'nxm') {
-            ahorroNxm += Math.floor(it.cantidad / p.cantidad_lleva) * it.precioFinal
+            if (p.precio_final != null && it.cantidad >= p.cantidad_lleva) {
+              const ahorro = it.cantidad * Math.max(0, it.precioFinal - Number(p.precio_final))
+              if (ahorro > 0) ahorroNxm += ahorro
+            } else {
+              ahorroNxm += Math.floor(it.cantidad / p.cantidad_lleva) * it.precioFinal
+            }
+          } else if (p.tipo === 'precio_qty' && p.cantidad_min >= 2) {
+            const grupos = Math.floor(it.cantidad / p.cantidad_min)
+            if (grupos > 0) {
+              const ahorro = grupos * (p.cantidad_min * it.precioFinal - Number(p.precio_bundle))
+              if (ahorro > 0) ahorroQty += ahorro
+            }
           } else if (p.tipo === 'descuento_pct') {
             const mediaMatch = !p.medio_pago || pagos.some(pg => pg.medio_pago === p.medio_pago)
-            if (mediaMatch) pctTotal += Number(p.descuento_pct)
+            if (mediaMatch) {
+              if (p.precio_final != null) {
+                const ahorro = it.cantidad * Math.max(0, it.precioFinal - Number(p.precio_final))
+                if (ahorro > 0) ahorroQty += ahorro
+              } else {
+                pctTotal += Number(p.descuento_pct)
+              }
+            }
           }
         })
         pctTotal = Math.min(pctTotal, 100)
-        ahorroPromos += ahorroNxm + (bruto - ahorroNxm) * pctTotal / 100
+        ahorroPromos += ahorroNxm + ahorroQty + (bruto - ahorroNxm - ahorroQty) * pctTotal / 100
       }
     })
 
