@@ -7,7 +7,6 @@ const fmt$ = v =>
 
 const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
 
-/* Normaliza texto para matching: minúsculas, sin acentos, sin doble espacio */
 function norm(str) {
   return (str || '')
     .toLowerCase()
@@ -15,7 +14,6 @@ function norm(str) {
     .replace(/\s+/g, ' ').trim()
 }
 
-/* Intenta parear una fila del Excel con un producto del catálogo */
 function matchProducto(fila, colCodigo, colNombre, productos) {
   const codigoProveedor = colCodigo ? String(fila[colCodigo] ?? '').trim() : ''
   const nombreProveedor = colNombre ? norm(String(fila[colNombre] ?? '')) : ''
@@ -31,7 +29,6 @@ function matchProducto(fila, colCodigo, colNombre, productos) {
   if (nombreProveedor) {
     const exactoNombre = productos.find(p => norm(p.nombre) === nombreProveedor)
     if (exactoNombre) return exactoNombre
-    // parcial: el nombre del catálogo está contenido en el del proveedor o viceversa
     const parcial = productos.find(p =>
       norm(p.nombre).includes(nombreProveedor) ||
       nombreProveedor.includes(norm(p.nombre))
@@ -52,8 +49,14 @@ function guardarCfg(comercioId, proveedorId, cfg) {
   try { localStorage.setItem(CFG_KEY(comercioId, proveedorId), JSON.stringify(cfg)) } catch {}
 }
 
+const PASOS = [
+  { id: 'upload',  label: 'Archivo'  },
+  { id: 'mapeo',   label: 'Columnas' },
+  { id: 'informe', label: 'Informe'  },
+]
+
 export default function ComparadorProveedorModal({ productos, proveedores = [], comercioId, onActualizarMasivo, onCerrar }) {
-  const [paso,          setPaso]          = useState('upload')   // upload | mapeo | informe
+  const [paso,          setPaso]          = useState('upload')
   const [filas,         setFilas]         = useState([])
   const [columnas,      setColumnas]      = useState([])
   const [colCodigo,     setColCodigo]     = useState('')
@@ -65,7 +68,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
   const [saving,        setSaving]        = useState(false)
   const [saveError,     setSaveError]     = useState('')
   const [seleccionados, setSeleccionados] = useState(new Set())
-  const [filtro,        setFiltro]        = useState('todos')   // todos | emparejados | sin_match
+  const [filtro,        setFiltro]        = useState('todos')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -74,21 +77,18 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     return () => document.removeEventListener('keydown', fn)
   }, [onCerrar])
 
-  /* Cuando cambia el proveedor, intentar cargar su config guardada */
   function onProveedorChange(id) {
     setProveedorId(id)
     setCfgGuardada(false)
     if (!id || !columnas.length) return
     const cfg = cargarCfg(comercioId, id)
     if (!cfg) return
-    // Solo aplicar si las columnas del archivo coinciden
     if (cfg.colCodigo && columnas.includes(cfg.colCodigo)) setColCodigo(cfg.colCodigo)
     if (cfg.colNombre && columnas.includes(cfg.colNombre)) setColNombre(cfg.colNombre)
     if (cfg.colPrecio && columnas.includes(cfg.colPrecio)) setColPrecio(cfg.colPrecio)
     setCfgGuardada(true)
   }
 
-  /* ── Paso 1: cargar Excel ── */
   function onFileChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -104,8 +104,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
         setFilas(data)
         setColumnas(cols)
 
-        // Si hay proveedor seleccionado con config guardada, aplicarla
-        let cfg = proveedorId ? cargarCfg(comercioId, proveedorId) : null
+        const cfg = proveedorId ? cargarCfg(comercioId, proveedorId) : null
         if (cfg && cols.includes(cfg.colPrecio)) {
           setColCodigo(cfg.colCodigo && cols.includes(cfg.colCodigo) ? cfg.colCodigo : '')
           setColNombre(cfg.colNombre && cols.includes(cfg.colNombre) ? cfg.colNombre : '')
@@ -114,8 +113,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
           setSeleccionados(new Set())
           setPaso('informe')
         } else {
-          // Auto-detectar columnas por nombre común
-          const detectar = (keywords) => cols.find(c => keywords.some(k => norm(c).includes(k))) || ''
+          const detectar = (kws) => cols.find(c => kws.some(k => norm(c).includes(k))) || ''
           setColCodigo(detectar(['codigo', 'sku', 'cod', 'barras', 'art', 'articulo']))
           setColNombre(detectar(['nombre', 'descripcion', 'producto', 'detalle', 'desc']))
           setColPrecio(detectar(['precio', 'costo', 'price', 'importe', 'valor', 'unitario']))
@@ -129,19 +127,14 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     reader.readAsArrayBuffer(file)
   }
 
-  /* ── Informe: cruzar filas con catálogo ── */
   const informe = useMemo(() => {
     if (paso !== 'informe' || !colPrecio) return []
     return filas.map((fila, idx) => {
-      const producto    = matchProducto(fila, colCodigo, colNombre, productos)
+      const producto        = matchProducto(fila, colCodigo, colNombre, productos)
       const precioProveedor = Number(String(fila[colPrecio] ?? '').replace(',', '.')) || 0
       if (!precioProveedor) return null
-
       const costoActual = producto ? Number(producto.precio_costo) || 0 : 0
-      const variacion   = costoActual > 0
-        ? ((precioProveedor - costoActual) / costoActual) * 100
-        : null
-
+      const variacion   = costoActual > 0 ? ((precioProveedor - costoActual) / costoActual) * 100 : null
       return { _idx: idx, fila, producto, precioProveedor, costoActual, variacion }
     }).filter(Boolean)
   }, [paso, filas, colCodigo, colNombre, colPrecio, productos])
@@ -160,7 +153,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     bajaron:     informe.filter(r => r.variacion !== null && r.variacion < -0.5).length,
   }), [informe])
 
-  /* ── Selección ── */
   const emparejadosFiltrados = informeFiltrado.filter(r => r.producto)
   const todosSeleccionados   = emparejadosFiltrados.length > 0 &&
     emparejadosFiltrados.every(r => seleccionados.has(r._idx))
@@ -168,34 +160,20 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
 
   function toggleTodos() {
     if (todosSeleccionados) {
-      setSeleccionados(prev => {
-        const next = new Set(prev)
-        emparejadosFiltrados.forEach(r => next.delete(r._idx))
-        return next
-      })
+      setSeleccionados(prev => { const n = new Set(prev); emparejadosFiltrados.forEach(r => n.delete(r._idx)); return n })
     } else {
-      setSeleccionados(prev => {
-        const next = new Set(prev)
-        emparejadosFiltrados.forEach(r => next.add(r._idx))
-        return next
-      })
+      setSeleccionados(prev => { const n = new Set(prev); emparejadosFiltrados.forEach(r => n.add(r._idx)); return n })
     }
   }
 
   function toggleFila(idx) {
-    setSeleccionados(prev => {
-      const next = new Set(prev)
-      next.has(idx) ? next.delete(idx) : next.add(idx)
-      return next
-    })
+    setSeleccionados(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n })
   }
 
-  /* ── Aplicar nuevos costos ── */
   async function handleAplicar() {
     setSaveError('')
     const filasSel = informe.filter(r => seleccionados.has(r._idx) && r.producto)
     if (!filasSel.length) return
-
     const actualizaciones = filasSel.map(r => {
       const costoOrig = Number(r.producto.precio_costo) || 0
       const ventaOrig = Number(r.producto.precio_venta) || 0
@@ -207,7 +185,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
         precio_mayorista: r.producto.precio_mayorista ?? null,
       }
     })
-
     setSaving(true)
     const res = await onActualizarMasivo(actualizaciones)
     setSaving(false)
@@ -215,10 +192,9 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     else onCerrar()
   }
 
-  /* ── Exportar informe ── */
   function exportar() {
-    const filas = informe.map(r => ({
-      'Producto catálogo': r.producto?.nombre || '— sin coincidencia —',
+    const rows = informe.map(r => ({
+      'Producto catálogo':     r.producto?.nombre || '— sin coincidencia —',
       'Descripción proveedor': colNombre ? String(r.fila[colNombre] ?? '') : '',
       'Código proveedor':      colCodigo ? String(r.fila[colCodigo] ?? '') : '',
       'Costo actual':          r.costoActual || '',
@@ -226,12 +202,14 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
       'Variación $':           r.costoActual > 0 ? +(r.precioProveedor - r.costoActual).toFixed(2) : '',
       'Variación %':           r.variacion !== null ? +r.variacion.toFixed(2) : '',
     }))
-    const ws = XLSX.utils.json_to_sheet(filas)
+    const ws = XLSX.utils.json_to_sheet(rows)
     ws['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Comparador')
     XLSX.writeFile(wb, `comparador_precios_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
+
+  const pasoIdx = PASOS.findIndex(p => p.id === paso)
 
   /* ════════════════════════════════════════════════
      RENDER
@@ -241,96 +219,116 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
       <div className="apm-backdrop" onClick={onCerrar} />
       <div className="apm-modal comp-modal">
 
-        {/* Header */}
+        {/* ── Header con stepper ── */}
         <div className="apm-header">
           <div className="apm-header-title">
             <i className="ti ti-file-diff" />
             Comparar lista de precios proveedor
-            {paso !== 'upload' && (
-              <div className="comp-steps">
-                <span className={paso === 'mapeo' ? 'comp-step--active' : 'comp-step--done'}>
-                  1. Archivo
-                </span>
-                <i className="ti ti-chevron-right" />
-                <span className={paso === 'informe' ? 'comp-step--active' : paso === 'mapeo' ? '' : 'comp-step--done'}>
-                  2. Columnas
-                </span>
-                {paso === 'informe' && (
-                  <>
-                    <i className="ti ti-chevron-right" />
-                    <span className="comp-step--active">3. Informe</span>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="comp-stepper">
+              {PASOS.map((p, i) => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center' }}>
+                  <div className={`comp-step-item${i === pasoIdx ? ' comp-step-item--active' : i < pasoIdx ? ' comp-step-item--done' : ''}`}>
+                    <div className="comp-step-num">
+                      {i < pasoIdx ? <i className="ti ti-check" style={{ fontSize: 10 }} /> : i + 1}
+                    </div>
+                    <span className="comp-step-label">{p.label}</span>
+                  </div>
+                  {i < PASOS.length - 1 && <div className="comp-step-connector" />}
+                </div>
+              ))}
+            </div>
           </div>
           <button className="btn-icon" onClick={onCerrar}><i className="ti ti-x" /></button>
         </div>
 
-        {/* ── PASO 1: UPLOAD ── */}
+        {/* ══ PASO 1: UPLOAD ══ */}
         {paso === 'upload' && (
           <div className="comp-upload-body">
 
-            {/* Selector de proveedor (opcional pero recomendado) */}
-            {proveedores.length > 0 && (
-              <div className="comp-prov-sel">
-                <label className="field-label">
-                  <i className="ti ti-building-store" /> Proveedor <span className="td-muted">(opcional — recuerda el formato)</span>
-                </label>
-                <select
-                  className="field-select"
-                  value={proveedorId}
-                  onChange={e => setProveedorId(e.target.value)}
-                  style={{ maxWidth: 340 }}
-                >
-                  <option value="">— Sin especificar —</option>
-                  {proveedores.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.razon_social || p.nombre}
-                      {cargarCfg(comercioId, p.id) ? ' ✓' : ''}
-                    </option>
-                  ))}
-                </select>
-                {proveedorId && cargarCfg(comercioId, proveedorId) && (
-                  <span className="comp-cfg-saved">
-                    <i className="ti ti-bookmark-filled" /> Formato guardado — al subir el Excel va directo al informe
-                  </span>
-                )}
+            {/* Intro */}
+            <div className="comp-upload-intro">
+              <div className="comp-upload-intro-icon">
+                <i className="ti ti-file-diff" />
               </div>
-            )}
-
-            <div
-              className="comp-dropzone"
-              onClick={() => inputRef.current?.click()}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => {
-                e.preventDefault()
-                const file = e.dataTransfer.files?.[0]
-                if (file) { inputRef.current.files = e.dataTransfer.files; onFileChange({ target: { files: [file] } }) }
-              }}
-            >
-              <i className="ti ti-file-spreadsheet" />
-              <p>Arrastrá el Excel del proveedor o hacé clic para seleccionarlo</p>
-              <span className="td-muted" style={{ fontSize: 11 }}>Formatos soportados: .xlsx, .xls</span>
-              <input ref={inputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onFileChange} />
+              <div className="comp-upload-intro-text">
+                <h3>Subí la lista de precios de tu proveedor</h3>
+                <p>El sistema la cruza contra tu catálogo y te muestra qué productos subieron o bajaron de precio. Podés aplicar los nuevos costos directamente.</p>
+              </div>
             </div>
-            {errUpload && (
-              <div className="error-banner"><i className="ti ti-alert-circle" /> {errUpload}</div>
-            )}
-            <div className="comp-upload-hint">
-              <i className="ti ti-info-circle" />
-              El archivo puede tener cualquier formato — en el siguiente paso vas a indicar qué columna es el código, el nombre y el precio.
+
+            <div className="comp-upload-main">
+
+              {/* Selector proveedor */}
+              {proveedores.length > 0 && (
+                <div className="comp-prov-sel">
+                  <div className="comp-prov-sel-header">
+                    <i className="ti ti-building-store" />
+                    <strong>Proveedor</strong>
+                    <span>— opcional, pero recuerda el formato del Excel</span>
+                  </div>
+                  <select
+                    className="field-select"
+                    value={proveedorId}
+                    onChange={e => setProveedorId(e.target.value)}
+                  >
+                    <option value="">— Sin especificar —</option>
+                    {proveedores.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.razon_social || p.nombre}
+                        {cargarCfg(comercioId, p.id) ? ' ✓' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {proveedorId && cargarCfg(comercioId, proveedorId) && (
+                    <span className="comp-cfg-saved">
+                      <i className="ti ti-bolt" /> Formato guardado — al subir el Excel va directo al informe
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Dropzone */}
+              <div
+                className="comp-dropzone"
+                onClick={() => inputRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => {
+                  e.preventDefault()
+                  const file = e.dataTransfer.files?.[0]
+                  if (file) onFileChange({ target: { files: [file] } })
+                }}
+              >
+                <div className="comp-dropzone-icon">
+                  <i className="ti ti-file-spreadsheet" />
+                </div>
+                <p>Arrastrá el Excel aquí o hacé clic para seleccionarlo</p>
+                <small>Formatos soportados: .xlsx y .xls</small>
+                <input ref={inputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onFileChange} />
+              </div>
+
+              {errUpload && (
+                <div className="error-banner" style={{ maxWidth: 520, width: '100%' }}>
+                  <i className="ti ti-alert-circle" /> {errUpload}
+                </div>
+              )}
+
+              <div className="comp-upload-hint">
+                <i className="ti ti-info-circle" />
+                El archivo puede tener cualquier formato — en el siguiente paso indicás qué columna es el código, el nombre y el precio.
+              </div>
             </div>
           </div>
         )}
 
-        {/* ── PASO 2: MAPEO DE COLUMNAS ── */}
+        {/* ══ PASO 2: MAPEO ══ */}
         {paso === 'mapeo' && (
           <>
             <div className="comp-mapeo-body">
-              <div className="comp-mapeo-header">
+
+              {/* Barra top */}
+              <div className="comp-mapeo-top">
                 <p className="comp-mapeo-desc">
-                  Encontramos <strong>{filas.length} filas</strong> y <strong>{columnas.length} columnas</strong>. Indicá cuál corresponde a cada campo:
+                  <strong>{filas.length} filas</strong> · <strong>{columnas.length} columnas</strong> — indicá cuál corresponde a cada campo:
                 </p>
                 {proveedores.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -338,7 +336,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                       className="field-select"
                       value={proveedorId}
                       onChange={e => onProveedorChange(e.target.value)}
-                      style={{ maxWidth: 240 }}
+                      style={{ maxWidth: 220 }}
                     >
                       <option value="">— Sin proveedor —</option>
                       {proveedores.map(p => (
@@ -355,23 +353,53 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 )}
               </div>
 
-              <div className="comp-mapeo-grid">
-                <div className="field">
-                  <label className="field-label">Columna de código / SKU <span className="td-muted">(opcional)</span></label>
+              {/* Cards de columnas */}
+              <div className="comp-mapeo-cols">
+                {/* Código */}
+                <div className={`comp-col-card${colCodigo ? ' comp-col-card--active' : ''}`}>
+                  <div className="comp-col-card-header">
+                    <div className="comp-col-card-icon comp-col-card-icon--cod">
+                      <i className="ti ti-barcode" />
+                    </div>
+                    <div>
+                      <div className="comp-col-card-title">Código / SKU</div>
+                      <div className="comp-col-card-sub">Opcional — mejora el emparejamiento</div>
+                    </div>
+                  </div>
                   <select className="field-select" value={colCodigo} onChange={e => setColCodigo(e.target.value)}>
                     <option value="">— No usar —</option>
                     {columnas.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div className="field">
-                  <label className="field-label">Columna de nombre / descripción <span className="td-muted">(opcional)</span></label>
+
+                {/* Nombre */}
+                <div className={`comp-col-card${colNombre ? ' comp-col-card--active' : ''}`}>
+                  <div className="comp-col-card-header">
+                    <div className="comp-col-card-icon comp-col-card-icon--nom">
+                      <i className="ti ti-tag" />
+                    </div>
+                    <div>
+                      <div className="comp-col-card-title">Nombre / Descripción</div>
+                      <div className="comp-col-card-sub">Opcional — para cruzar por texto</div>
+                    </div>
+                  </div>
                   <select className="field-select" value={colNombre} onChange={e => setColNombre(e.target.value)}>
                     <option value="">— No usar —</option>
                     {columnas.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div className="field">
-                  <label className="field-label">Columna de precio / costo <span className="field-required">*</span></label>
+
+                {/* Precio */}
+                <div className={`comp-col-card${colPrecio ? ' comp-col-card--active' : ''}`}>
+                  <div className="comp-col-card-header">
+                    <div className="comp-col-card-icon comp-col-card-icon--prec">
+                      <i className="ti ti-currency-dollar" />
+                    </div>
+                    <div>
+                      <div className="comp-col-card-title">Precio / Costo <span className="field-required">*</span></div>
+                      <div className="comp-col-card-sub">Requerido</div>
+                    </div>
+                  </div>
                   <select className="field-select" value={colPrecio} onChange={e => setColPrecio(e.target.value)}>
                     <option value="">— Seleccioná —</option>
                     {columnas.map(c => <option key={c} value={c}>{c}</option>)}
@@ -379,10 +407,10 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 </div>
               </div>
 
-              {/* Preview primeras 3 filas */}
+              {/* Preview */}
               {filas.length > 0 && (
                 <div className="comp-preview">
-                  <p className="comp-preview-title">Vista previa (primeras 3 filas)</p>
+                  <p className="comp-preview-title">Vista previa — primeras 3 filas</p>
                   <div className="comp-preview-scroll">
                     <table className="data-table">
                       <thead>
@@ -394,7 +422,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                               c === colPrecio ? 'comp-col--precio' : ''
                             }>
                               {c}
-                              {c === colCodigo && <span className="comp-col-tag">código</span>}
+                              {c === colCodigo && <span className="comp-col-tag comp-col-tag--cod">código</span>}
                               {c === colNombre && <span className="comp-col-tag">nombre</span>}
                               {c === colPrecio && <span className="comp-col-tag comp-col-tag--precio">precio</span>}
                             </th>
@@ -440,10 +468,10 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
           </>
         )}
 
-        {/* ── PASO 3: INFORME ── */}
+        {/* ══ PASO 3: INFORME ══ */}
         {paso === 'informe' && (
           <>
-            {/* Proveedor activo */}
+            {/* Banner proveedor */}
             {proveedorId && (() => {
               const prov = proveedores.find(p => p.id === proveedorId)
               return prov ? (
@@ -457,24 +485,29 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
             {/* Stats */}
             <div className="comp-stats">
               <div className="comp-stat">
+                <i className="ti ti-list comp-stat-icon" />
                 <span className="comp-stat-val">{stats.total}</span>
-                <span className="comp-stat-label">filas</span>
+                <span className="comp-stat-label">Filas</span>
               </div>
               <div className="comp-stat comp-stat--ok">
+                <i className="ti ti-link comp-stat-icon" />
                 <span className="comp-stat-val">{stats.emparejados}</span>
-                <span className="comp-stat-label">emparejados</span>
+                <span className="comp-stat-label">Emparejados</span>
               </div>
               <div className="comp-stat comp-stat--warn">
+                <i className="ti ti-unlink comp-stat-icon" />
                 <span className="comp-stat-val">{stats.sinMatch}</span>
-                <span className="comp-stat-label">sin coincidencia</span>
+                <span className="comp-stat-label">Sin coincidencia</span>
               </div>
               <div className="comp-stat comp-stat--danger">
+                <i className="ti ti-trending-up comp-stat-icon" />
                 <span className="comp-stat-val">{stats.subieron}</span>
-                <span className="comp-stat-label">subieron precio</span>
+                <span className="comp-stat-label">Subieron precio</span>
               </div>
               <div className="comp-stat comp-stat--success">
+                <i className="ti ti-trending-down comp-stat-icon" />
                 <span className="comp-stat-val">{stats.bajaron}</span>
-                <span className="comp-stat-label">bajaron precio</span>
+                <span className="comp-stat-label">Bajaron precio</span>
               </div>
             </div>
 
@@ -495,7 +528,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
               ))}
             </div>
 
-            {/* Tabla informe */}
+            {/* Tabla */}
             <div className="apm-table-wrap">
               <table className="data-table">
                 <thead>
@@ -506,7 +539,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                         checked={todosSeleccionados}
                         ref={el => { if (el) el.indeterminate = !todosSeleccionados && algunoSeleccionado }}
                         onChange={toggleTodos}
-                        title="Seleccionar todos los emparejados visibles"
                         disabled={emparejadosFiltrados.length === 0}
                       />
                     </th>
@@ -519,23 +551,21 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 </thead>
                 <tbody>
                   {informeFiltrado.map(r => {
-                    const sel      = seleccionados.has(r._idx)
-                    const vPct     = r.variacion
-                    const subio    = vPct !== null && vPct > 0.5
-                    const bajo     = vPct !== null && vPct < -0.5
-                    const igual    = vPct !== null && !subio && !bajo
+                    const sel   = seleccionados.has(r._idx)
+                    const vPct  = r.variacion
+                    const subio = vPct !== null && vPct > 0.5
+                    const bajo  = vPct !== null && vPct < -0.5
+                    const igual = vPct !== null && !subio && !bajo
 
                     return (
                       <tr
                         key={r._idx}
-                        className={`${r.producto ? (sel ? 'apm-row--selected' : '') : 'comp-row--no-match'}`}
+                        className={r.producto ? (sel ? 'apm-row--selected' : '') : 'comp-row--no-match'}
                         onClick={() => r.producto && toggleFila(r._idx)}
                         style={{ cursor: r.producto ? 'pointer' : 'default' }}
                       >
                         <td onClick={e => e.stopPropagation()}>
-                          {r.producto && (
-                            <input type="checkbox" checked={sel} onChange={() => toggleFila(r._idx)} />
-                          )}
+                          {r.producto && <input type="checkbox" checked={sel} onChange={() => toggleFila(r._idx)} />}
                         </td>
                         <td className="apm-nombre">
                           {r.producto
@@ -545,9 +575,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                         <td style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
                           {colNombre ? String(r.fila[colNombre] ?? '') : '—'}
                           {colCodigo && r.fila[colCodigo] && (
-                            <span className="td-muted" style={{ marginLeft: 6 }}>
-                              [{r.fila[colCodigo]}]
-                            </span>
+                            <span className="td-muted" style={{ marginLeft: 6 }}>[{r.fila[colCodigo]}]</span>
                           )}
                         </td>
                         <td className="td-right td-muted">
@@ -562,11 +590,9 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                               {subio && <i className="ti ti-arrow-up" style={{ fontSize: 9 }} />}
                               {bajo  && <i className="ti ti-arrow-down" style={{ fontSize: 9 }} />}
                               {igual && <i className="ti ti-minus" style={{ fontSize: 9 }} />}
-                              {fmtPct(vPct)}
+                              {' '}{fmtPct(vPct)}
                             </span>
-                          ) : (
-                            <span className="td-muted">—</span>
-                          )}
+                          ) : <span className="td-muted">—</span>}
                         </td>
                       </tr>
                     )
@@ -581,7 +607,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
               </div>
             )}
 
-            {/* Footer */}
             <div className="apm-footer">
               <div className="apm-footer-info">
                 <button className="btn" onClick={() => setPaso('mapeo')}>
@@ -607,14 +632,13 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                   onClick={handleAplicar}
                 >
                   <i className={`ti ${saving ? 'ti-loader-2' : 'ti-coins'}`} />
-                  {saving
-                    ? 'Aplicando...'
-                    : `Aplicar ${seleccionados.size || ''} costo${seleccionados.size !== 1 ? 's' : ''}`}
+                  {saving ? 'Aplicando...' : `Aplicar ${seleccionados.size || ''} costo${seleccionados.size !== 1 ? 's' : ''}`}
                 </button>
               </div>
             </div>
           </>
         )}
+
       </div>
     </>
   )
