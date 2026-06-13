@@ -42,18 +42,30 @@ function matchProducto(fila, colCodigo, colNombre, productos) {
   return null
 }
 
-export default function ComparadorProveedorModal({ productos, onActualizarMasivo, onCerrar }) {
-  const [paso,         setPaso]         = useState('upload')   // upload | mapeo | informe
-  const [filas,        setFilas]        = useState([])
-  const [columnas,     setColumnas]     = useState([])
-  const [colCodigo,    setColCodigo]    = useState('')
-  const [colNombre,    setColNombre]    = useState('')
-  const [colPrecio,    setColPrecio]    = useState('')
-  const [errUpload,    setErrUpload]    = useState('')
-  const [saving,       setSaving]       = useState(false)
-  const [saveError,    setSaveError]    = useState('')
-  const [seleccionados,setSeleccionados]= useState(new Set())
-  const [filtro,       setFiltro]       = useState('todos')   // todos | emparejados | sin_match
+const CFG_KEY = (comercioId, proveedorId) => `excel_cfg_${comercioId}_${proveedorId}`
+
+function cargarCfg(comercioId, proveedorId) {
+  try { return JSON.parse(localStorage.getItem(CFG_KEY(comercioId, proveedorId)) || 'null') } catch { return null }
+}
+
+function guardarCfg(comercioId, proveedorId, cfg) {
+  try { localStorage.setItem(CFG_KEY(comercioId, proveedorId), JSON.stringify(cfg)) } catch {}
+}
+
+export default function ComparadorProveedorModal({ productos, proveedores = [], comercioId, onActualizarMasivo, onCerrar }) {
+  const [paso,          setPaso]          = useState('upload')   // upload | mapeo | informe
+  const [filas,         setFilas]         = useState([])
+  const [columnas,      setColumnas]      = useState([])
+  const [colCodigo,     setColCodigo]     = useState('')
+  const [colNombre,     setColNombre]     = useState('')
+  const [colPrecio,     setColPrecio]     = useState('')
+  const [proveedorId,   setProveedorId]   = useState('')
+  const [cfgGuardada,   setCfgGuardada]   = useState(false)
+  const [errUpload,     setErrUpload]     = useState('')
+  const [saving,        setSaving]        = useState(false)
+  const [saveError,     setSaveError]     = useState('')
+  const [seleccionados, setSeleccionados] = useState(new Set())
+  const [filtro,        setFiltro]        = useState('todos')   // todos | emparejados | sin_match
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -61,6 +73,20 @@ export default function ComparadorProveedorModal({ productos, onActualizarMasivo
     document.addEventListener('keydown', fn)
     return () => document.removeEventListener('keydown', fn)
   }, [onCerrar])
+
+  /* Cuando cambia el proveedor, intentar cargar su config guardada */
+  function onProveedorChange(id) {
+    setProveedorId(id)
+    setCfgGuardada(false)
+    if (!id || !columnas.length) return
+    const cfg = cargarCfg(comercioId, id)
+    if (!cfg) return
+    // Solo aplicar si las columnas del archivo coinciden
+    if (cfg.colCodigo && columnas.includes(cfg.colCodigo)) setColCodigo(cfg.colCodigo)
+    if (cfg.colNombre && columnas.includes(cfg.colNombre)) setColNombre(cfg.colNombre)
+    if (cfg.colPrecio && columnas.includes(cfg.colPrecio)) setColPrecio(cfg.colPrecio)
+    setCfgGuardada(true)
+  }
 
   /* ── Paso 1: cargar Excel ── */
   function onFileChange(e) {
@@ -77,12 +103,25 @@ export default function ComparadorProveedorModal({ productos, onActualizarMasivo
         const cols = Object.keys(data[0])
         setFilas(data)
         setColumnas(cols)
-        // Auto-detectar columnas por nombre común
-        const detectar = (keywords) => cols.find(c => keywords.some(k => norm(c).includes(k))) || ''
-        setColCodigo(detectar(['codigo', 'sku', 'cod', 'barras', 'art', 'articulo']))
-        setColNombre(detectar(['nombre', 'descripcion', 'producto', 'detalle', 'desc']))
-        setColPrecio(detectar(['precio', 'costo', 'price', 'importe', 'valor', 'unitario']))
-        setPaso('mapeo')
+
+        // Si hay proveedor seleccionado con config guardada, aplicarla
+        let cfg = proveedorId ? cargarCfg(comercioId, proveedorId) : null
+        if (cfg && cols.includes(cfg.colPrecio)) {
+          setColCodigo(cfg.colCodigo && cols.includes(cfg.colCodigo) ? cfg.colCodigo : '')
+          setColNombre(cfg.colNombre && cols.includes(cfg.colNombre) ? cfg.colNombre : '')
+          setColPrecio(cfg.colPrecio)
+          setCfgGuardada(true)
+          setSeleccionados(new Set())
+          setPaso('informe')
+        } else {
+          // Auto-detectar columnas por nombre común
+          const detectar = (keywords) => cols.find(c => keywords.some(k => norm(c).includes(k))) || ''
+          setColCodigo(detectar(['codigo', 'sku', 'cod', 'barras', 'art', 'articulo']))
+          setColNombre(detectar(['nombre', 'descripcion', 'producto', 'detalle', 'desc']))
+          setColPrecio(detectar(['precio', 'costo', 'price', 'importe', 'valor', 'unitario']))
+          setCfgGuardada(false)
+          setPaso('mapeo')
+        }
       } catch {
         setErrUpload('No se pudo leer el archivo. Asegurate de que sea .xlsx o .xls.')
       }
@@ -231,6 +270,35 @@ export default function ComparadorProveedorModal({ productos, onActualizarMasivo
         {/* ── PASO 1: UPLOAD ── */}
         {paso === 'upload' && (
           <div className="comp-upload-body">
+
+            {/* Selector de proveedor (opcional pero recomendado) */}
+            {proveedores.length > 0 && (
+              <div className="comp-prov-sel">
+                <label className="field-label">
+                  <i className="ti ti-building-store" /> Proveedor <span className="td-muted">(opcional — recuerda el formato)</span>
+                </label>
+                <select
+                  className="field-select"
+                  value={proveedorId}
+                  onChange={e => setProveedorId(e.target.value)}
+                  style={{ maxWidth: 340 }}
+                >
+                  <option value="">— Sin especificar —</option>
+                  {proveedores.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.razon_social || p.nombre}
+                      {cargarCfg(comercioId, p.id) ? ' ✓' : ''}
+                    </option>
+                  ))}
+                </select>
+                {proveedorId && cargarCfg(comercioId, proveedorId) && (
+                  <span className="comp-cfg-saved">
+                    <i className="ti ti-bookmark-filled" /> Formato guardado — al subir el Excel va directo al informe
+                  </span>
+                )}
+              </div>
+            )}
+
             <div
               className="comp-dropzone"
               onClick={() => inputRef.current?.click()}
@@ -260,9 +328,32 @@ export default function ComparadorProveedorModal({ productos, onActualizarMasivo
         {paso === 'mapeo' && (
           <>
             <div className="comp-mapeo-body">
-              <p className="comp-mapeo-desc">
-                Encontramos <strong>{filas.length} filas</strong> y <strong>{columnas.length} columnas</strong>. Indicá cuál corresponde a cada campo:
-              </p>
+              <div className="comp-mapeo-header">
+                <p className="comp-mapeo-desc">
+                  Encontramos <strong>{filas.length} filas</strong> y <strong>{columnas.length} columnas</strong>. Indicá cuál corresponde a cada campo:
+                </p>
+                {proveedores.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <select
+                      className="field-select"
+                      value={proveedorId}
+                      onChange={e => onProveedorChange(e.target.value)}
+                      style={{ maxWidth: 240 }}
+                    >
+                      <option value="">— Sin proveedor —</option>
+                      {proveedores.map(p => (
+                        <option key={p.id} value={p.id}>{p.razon_social || p.nombre}</option>
+                      ))}
+                    </select>
+                    {proveedorId && (
+                      <span className="comp-cfg-badge">
+                        <i className="ti ti-device-floppy" />
+                        {cfgGuardada ? 'Formato cargado' : 'Se guardará al confirmar'}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="comp-mapeo-grid">
                 <div className="field">
@@ -336,7 +427,11 @@ export default function ComparadorProveedorModal({ productos, onActualizarMasivo
                 <button
                   className="btn btn--primary"
                   disabled={!colPrecio || (!colCodigo && !colNombre)}
-                  onClick={() => { setSeleccionados(new Set()); setPaso('informe') }}
+                  onClick={() => {
+                    if (proveedorId) guardarCfg(comercioId, proveedorId, { colCodigo, colNombre, colPrecio })
+                    setSeleccionados(new Set())
+                    setPaso('informe')
+                  }}
                 >
                   <i className="ti ti-chart-bar" /> Ver informe
                 </button>
@@ -348,6 +443,17 @@ export default function ComparadorProveedorModal({ productos, onActualizarMasivo
         {/* ── PASO 3: INFORME ── */}
         {paso === 'informe' && (
           <>
+            {/* Proveedor activo */}
+            {proveedorId && (() => {
+              const prov = proveedores.find(p => p.id === proveedorId)
+              return prov ? (
+                <div className="comp-prov-banner">
+                  <i className="ti ti-building-store" />
+                  {prov.razon_social || prov.nombre}
+                </div>
+              ) : null
+            })()}
+
             {/* Stats */}
             <div className="comp-stats">
               <div className="comp-stat">

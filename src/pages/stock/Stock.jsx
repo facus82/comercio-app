@@ -317,6 +317,8 @@ export default function Stock() {
       {comparandoProveedor && (
         <ComparadorProveedorModal
           productos={productos}
+          proveedores={proveedores}
+          comercioId={comercioId}
           onActualizarMasivo={actualizarMasivo}
           onCerrar={() => setComparandoProveedor(false)}
         />
