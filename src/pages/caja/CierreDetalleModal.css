@@ -323,6 +323,45 @@
   font-weight: 500;
 }
 
+/* ── Mini desglose por medio de pago (dentro de CC card) ─ */
+.cierre-det-cc-mp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.cierre-det-cc-mp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: 2px 0;
+}
+
+.cierre-det-cc-mp-row--total {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.cierre-det-cc-mp-label {
+  color: inherit;
+}
+
+.cierre-det-cc-mp-monto {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.cierre-det-cc-mp-row--total .cierre-det-cc-mp-monto {
+  font-weight: 700;
+}
+
 /* ── Notas ────────────────────────────────────────────── */
 .cierre-det-notas {
   font-size: 12px;
@@ -336,6 +375,171 @@
 }
 
 /* ── Print ────────────────────────────────────────────── */
+
+/* ── DISTRIBUCIÓN EFECTUADA ────────────────────────────── */
+/* ── Filas por CC ── */
+.cierre-dist-cc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cierre-dist-cc-row {
+  display: grid;
+  grid-template-columns: 10px 1fr 80px 90px;
+  align-items: center;
+  gap: 10px;
+}
+
+.cierre-dist-cc-row--done {
+  grid-template-columns: 10px 1fr 1fr;
+  padding: 4px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.cierre-dist-cc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cierre-dist-cc-nombre {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.cierre-dist-cc-calc {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: right;
+}
+
+.cierre-dist-cc-input {
+  padding: 5px 8px;
+  font-size: 13px;
+  text-align: right;
+  border: 0.5px solid var(--color-border-input);
+  border-radius: 6px;
+  background: var(--color-bg-app);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  outline: none;
+  width: 100%;
+  transition: border-color .15s;
+}
+
+.cierre-dist-cc-input:focus { border-color: var(--color-accent); }
+
+.cierre-dist-cc-entregado {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-danger-600, #dc2626);
+  text-align: right;
+}
+
+/* ── Preview total + saldo ── */
+.cierre-dist-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  margin-bottom: 4px;
+}
+
+.cierre-dist-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.cierre-dist-preview-row--main {
+  font-weight: 600;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.cierre-dist-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.cierre-dist-hint .ti { color: var(--color-accent); }
+.cierre-dist-hint strong { color: var(--color-text-primary); }
+
+.cierre-dist-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.cierre-dist-btn {
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-bottom: 1px;
+}
+
+.cierre-dist-saldo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.cierre-dist-confirmado {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cierre-dist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 5px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.cierre-dist-row--result {
+  font-weight: 600;
+  border-bottom: none;
+  padding-top: 8px;
+}
+
+.cierre-dist-val--neg {
+  color: var(--color-danger-600, #dc2626);
+  font-weight: 500;
+}
+
+.cierre-dist-rehacer {
+  align-self: flex-start;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  margin-top: 2px;
+  font-family: var(--font-family-base);
+}
+
+.cierre-dist-rehacer:hover { color: var(--color-accent); }
 
 /*
   Técnica: visibility en lugar de display.

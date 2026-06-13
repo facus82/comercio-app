@@ -1,6 +1,36 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
+// Distribuye pagos por CC cruzando items × pagos proporcionalmente por venta
+function buildMediosPorCC(ccs, items, pagos) {
+  const ventaMap = {}
+  for (const item of items) {
+    const vid = item.venta?.id
+    if (!vid) continue
+    if (!ventaMap[vid]) ventaMap[vid] = { subtotalTotal: 0, itemsByCC: {}, pagos: [] }
+    ventaMap[vid].subtotalTotal += Number(item.subtotal)
+    const ccId = item.producto?.centro_costo_id
+    if (ccId) ventaMap[vid].itemsByCC[ccId] = (ventaMap[vid].itemsByCC[ccId] || 0) + Number(item.subtotal)
+  }
+  for (const pago of pagos) {
+    const vid = pago.venta?.id
+    if (vid && ventaMap[vid]) ventaMap[vid].pagos.push({ mp: pago.medio_pago, monto: Number(pago.monto) })
+  }
+  const result = {}
+  for (const cc of ccs) result[cc.id] = {}
+  for (const venta of Object.values(ventaMap)) {
+    if (!venta.subtotalTotal || !venta.pagos.length) continue
+    for (const [ccId, ccSub] of Object.entries(venta.itemsByCC)) {
+      if (!result[ccId]) continue
+      const frac = ccSub / venta.subtotalTotal
+      for (const { mp, monto } of venta.pagos) {
+        result[ccId][mp] = (result[ccId][mp] || 0) + monto * frac
+      }
+    }
+  }
+  return result
+}
+
 export function useCaja(comercioId, perfilId) {
   const [cajaActual,   setCajaActual]   = useState(null)
   const [historial,    setHistorial]    = useState([])
@@ -46,7 +76,7 @@ export function useCaja(comercioId, perfilId) {
     if (cajaAbierta) {
       const { data: movs } = await supabase
         .from('caja_movimientos')
-        .select('*, usuario:usuarios(nombre)')
+        .select('*, usuario:usuarios(nombre), centro_costo:centros_costos(id, nombre, color)')
         .eq('caja_id', cajaAbierta.id)
         .order('created_at', { ascending: true })
       setMovimientos(movs || [])
@@ -61,24 +91,41 @@ export function useCaja(comercioId, perfilId) {
     let cierresConCC = cierres
     if (cierres.length > 0 && ccs.length > 0) {
       const oldest = cierres[cierres.length - 1]
-      const { data: items } = await supabase
-        .from('venta_items')
-        .select('subtotal, producto:productos(centro_costo_id), venta:ventas!inner(comercio_id, estado, fecha)')
-        .eq('venta.comercio_id', comercioId)
-        .eq('venta.estado', 'completada')
-        .gte('venta.fecha', oldest.fecha_apertura)
+      const [{ data: rawItems }, { data: rawPagos }] = await Promise.all([
+        supabase
+          .from('venta_items')
+          .select('subtotal, producto:productos(centro_costo_id), venta:ventas!inner(id, comercio_id, estado, fecha)')
+          .eq('venta.comercio_id', comercioId)
+          .eq('venta.estado', 'completada')
+          .gte('venta.fecha', oldest.fecha_apertura),
+        supabase
+          .from('venta_pagos')
+          .select('medio_pago, monto, venta:ventas!inner(id, comercio_id, estado, fecha)')
+          .eq('venta.comercio_id', comercioId)
+          .eq('venta.estado', 'completada')
+          .gte('venta.fecha', oldest.fecha_apertura),
+      ])
 
-      const allItems = items || []
+      const allItems = rawItems || []
+      const allPagos = rawPagos || []
 
       cierresConCC = cierres.map(c => {
-        const itemsDeCierre = allItems.filter(i => {
-          const f = new Date(i.venta.fecha)
+        const inRange = (fecha) => {
+          const f = new Date(fecha)
           return f >= new Date(c.fecha_apertura) && f <= new Date(c.fecha_cierre)
-        })
+        }
+        const itemsDeCierre = allItems.filter(i => inRange(i.venta.fecha))
+        const pagosDeCierre = allPagos.filter(p => inRange(p.venta.fecha))
+        const mediosPorCC   = buildMediosPorCC(ccs, itemsDeCierre, pagosDeCierre)
+
         const porCC = ccs
           .map(cc => {
             const ccItems = itemsDeCierre.filter(i => i.producto?.centro_costo_id === cc.id)
-            return { ...cc, total: ccItems.reduce((s, i) => s + Number(i.subtotal), 0) }
+            return {
+              ...cc,
+              total:      ccItems.reduce((s, i) => s + Number(i.subtotal), 0),
+              mediosPago: mediosPorCC[cc.id] || {},
+            }
           })
           .filter(cc => cc.total > 0)
         return { ...c, porCC }
@@ -106,7 +153,7 @@ export function useCaja(comercioId, perfilId) {
     return { data }
   }
 
-  async function registrarMovimiento({ tipo, monto, concepto }) {
+  async function registrarMovimiento({ tipo, monto, concepto, centro_costo_id, nro_comprobante }) {
     if (!cajaActual) return { error: { message: 'No hay caja abierta.' } }
     const montoNum = Number(monto)
     if (!montoNum || montoNum <= 0) return { error: { message: 'El monto debe ser mayor a 0.' } }
@@ -114,14 +161,16 @@ export function useCaja(comercioId, perfilId) {
     const { data, error } = await supabase
       .from('caja_movimientos')
       .insert({
-        caja_id:     cajaActual.id,
-        comercio_id: comercioId,
-        usuario_id:  perfilId,
+        caja_id:         cajaActual.id,
+        comercio_id:     comercioId,
+        usuario_id:      perfilId,
         tipo,
-        monto:       montoNum,
-        concepto:    concepto?.trim() || null,
+        monto:           montoNum,
+        concepto:        concepto?.trim()        || null,
+        centro_costo_id: tipo === 'retiro' ? (centro_costo_id || null) : null,
+        nro_comprobante: nro_comprobante?.trim() || null,
       })
-      .select('*, usuario:usuarios(nombre)')
+      .select('*, usuario:usuarios(nombre), centro_costo:centros_costos(id, nombre, color)')
       .single()
 
     if (error) return { error }

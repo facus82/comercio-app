@@ -522,6 +522,83 @@
 .caja-mov-item--ingreso .caja-mov-monto { color: var(--color-success-700, #15803d); }
 .caja-mov-item--retiro  .caja-mov-monto { color: var(--color-danger-600,  #dc2626); }
 
+/* ── COMPROBANTE en movimiento ── */
+.caja-mov-comprobante {
+  font-size: 10px;
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.caja-mov-comprobante .ti { font-size: 11px; }
+
+/* ── REFERENCIA ÚLTIMO CIERRE ── */
+.caja-ref-cierre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  font-size: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.caja-ref-cierre .ti {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.caja-ref-cierre span:nth-child(2) {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-tertiary);
+}
+
+.caja-ref-cierre strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.caja-ref-cierre-meta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.caja-ref-cierre-dif {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-left: auto;
+}
+
+.caja-ref-cierre-dif.pos { background: var(--color-success-50, #f0fdf4); color: var(--color-success-700, #15803d); }
+.caja-ref-cierre-dif.neg { background: var(--color-danger-50,  #fef2f2); color: var(--color-danger-600,  #dc2626); }
+
+/* ── CC CHIP en movimiento ── */
+.caja-mov-cc-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  margin-left: 6px;
+  border-radius: 4px;
+  border-left: 3px solid;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
 /* ── Movimientos en historial ── */
 .caja-hist-movs {
   display: flex;
@@ -548,6 +625,164 @@
 .caja-hist-mov--retiro {
   background: var(--color-danger-50, #fef2f2);
   color: var(--color-danger-600, #dc2626);
+}
+
+/* ── BOTÓN CONTAR + DISPLAY ── */
+.caja-money-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.caja-arqueo-display {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 0.5px solid var(--color-border-input);
+  border-radius: 6px;
+  background: var(--color-bg-app);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  user-select: none;
+}
+
+.caja-arqueo-display:hover,
+.caja-arqueo-display:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.caja-arqueo-display--filled {
+  color: var(--color-text-primary);
+  background: var(--color-bg-card);
+}
+
+.caja-arqueo-display-placeholder {
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.caja-arqueo-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-warning, #F59E0B);
+  margin: 0;
+}
+
+.caja-arqueo-hint .ti { font-size: 13px; }
+
+/* ── LEDGER / COMPOSICIÓN DEL SALDO ── */
+.caja-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-size: 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.caja-ledger-header {
+  display: grid;
+  grid-template-columns: 48px 1fr 90px 90px;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-bg-app);
+  border-bottom: 0.5px solid var(--color-border);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-tertiary);
+}
+
+.caja-ledger-header span:last-child,
+.caja-ledger-row .caja-ledger-balance {
+  text-align: right;
+}
+
+.caja-ledger-header span:nth-child(3),
+.caja-ledger-row .caja-ledger-monto {
+  text-align: right;
+}
+
+.caja-ledger-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 90px 90px;
+  gap: 8px;
+  padding: 6px 10px;
+  align-items: center;
+  border-bottom: 0.5px solid var(--color-border);
+  transition: background var(--transition-fast);
+}
+
+.caja-ledger-row:last-child { border-bottom: none; }
+
+.caja-ledger-row:hover { background: var(--color-bg-app); }
+
+/* Apertura */
+.caja-ledger-row--apertura {
+  background: rgba(99, 102, 241, 0.04);
+}
+
+/* Venta */
+.caja-ledger-row--venta {}
+
+/* Ingreso / retiro */
+.caja-ledger-row--ingreso { background: rgba(16, 185, 129, 0.04); }
+.caja-ledger-row--retiro  { background: rgba(239,  68,  68, 0.04); }
+
+/* Total */
+.caja-ledger-row--total {
+  background: var(--color-bg-app);
+  border-top: 0.5px solid var(--color-border);
+  font-weight: 600;
+}
+
+.caja-ledger-hora {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.caja-ledger-desc {
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.caja-ledger-desc--bold { font-weight: 600; }
+
+.caja-ledger-monto { font-weight: 500; }
+
+.caja-ledger-monto--pos { color: var(--color-success, #10B981); }
+.caja-ledger-monto--neg { color: var(--color-danger,  #EF4444); }
+
+.caja-ledger-balance {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.caja-ledger-balance--total {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+@media (max-width: 540px) {
+  .caja-ledger-header,
+  .caja-ledger-row {
+    grid-template-columns: 44px 1fr 78px 78px;
+    gap: 4px;
+    font-size: 11px;
+  }
 }
 
 /* ── PRINT ── */
