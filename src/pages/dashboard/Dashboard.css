@@ -422,6 +422,23 @@
   gap: 2px;
 }
 
+.cc-total-periodo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin: 0 var(--space-2) var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.cc-total-periodo strong {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
 .cc-item {
   display: flex;
   flex-direction: column;

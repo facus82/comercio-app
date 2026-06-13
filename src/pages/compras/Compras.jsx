@@ -40,20 +40,34 @@ export default function Compras() {
 
   const { compras, loading, cargarItems, registrarPago, revertirEstado } = useCompras(comercioId, perfil?.id)
 
-  const [busqueda,      setBusqueda]      = useState('')
-  const [filtroEstado,  setFiltroEstado]  = useState(null)
-  const [compraActiva,  setCompraActiva]  = useState(null)
+  const [busqueda,        setBusqueda]        = useState('')
+  const [filtroEstado,    setFiltroEstado]    = useState(null)
+  const [filtroProveedor, setFiltroProveedor] = useState(null)
+  const [compraActiva,    setCompraActiva]    = useState(null)
+
+  const proveedoresLista = useMemo(() => {
+    const map = {}
+    compras.forEach(c => {
+      if (c.proveedor?.id) {
+        map[c.proveedor.id] = c.proveedor.nombre_fantasia || c.proveedor.razon_social || '—'
+      }
+    })
+    return Object.entries(map)
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }, [compras])
 
   const filtradas = useMemo(() => {
     const q = busqueda.toLowerCase()
     return compras.filter(c => {
-      if (filtroEstado && c.estado !== filtroEstado) return false
+      if (filtroEstado    && c.estado          !== filtroEstado)    return false
+      if (filtroProveedor && c.proveedor?.id   !== filtroProveedor) return false
       if (!q) return true
       const prov = c.proveedor?.razon_social || ''
       const num  = c.numero || ''
       return prov.toLowerCase().includes(q) || num.toLowerCase().includes(q)
     })
-  }, [compras, busqueda, filtroEstado])
+  }, [compras, busqueda, filtroEstado, filtroProveedor])
 
   const totalPendiente = useMemo(
     () => compras.filter(c => c.estado === 'pendiente' || c.estado === 'parcial')
@@ -100,6 +114,18 @@ export default function Compras() {
               </button>
             ))}
           </div>
+          {proveedoresLista.length > 0 && (
+            <select
+              className="field-input compras-prov-select"
+              value={filtroProveedor || ''}
+              onChange={e => setFiltroProveedor(e.target.value || null)}
+            >
+              <option value="">Todos los proveedores</option>
+              {proveedoresLista.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
+          )}
         </div>
         <button className="btn btn--primary" onClick={() => navigate('/compras/nueva')}>
           <i className="ti ti-plus" />

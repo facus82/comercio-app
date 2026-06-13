@@ -27,6 +27,13 @@
   font-weight: 500;
 }
 
+.compras-prov-select {
+  max-width: 200px;
+  font-size: 11px;
+  padding: 5px 8px;
+  height: auto;
+}
+
 .compras-count {
   font-size: 11px;
   color: var(--color-text-tertiary);

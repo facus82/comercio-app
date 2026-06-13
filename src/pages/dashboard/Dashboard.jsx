@@ -97,7 +97,7 @@ function useDashboard(comercioId) {
       .sort((a, b) => b.total - a.total)
 
     const pagarProveedores = proveedoresPendientes.reduce((s, p) => s + p.total, 0)
-    const stockBajoItems   = (resProductos.data || []).filter(p => Number(p.stock_actual) <= Number(p.stock_minimo))
+    const stockBajoItems   = (resProductos.data || []).filter(p => Number(p.stock_minimo) > 0 && Number(p.stock_actual) <= Number(p.stock_minimo))
     const vencimientos     = resLotes.data || []
 
     setDatos({
@@ -202,6 +202,26 @@ function useVentasPorCC(comercioId, periodo, centrosCostos) {
   return { porCC, allItems, loadingCC }
 }
 
+/* ── Helpers localStorage obligaciones ── */
+function obKey(comercioId) {
+  const hoy  = new Date()
+  const mes  = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+  return `ob_pagadas_${comercioId}_${mes}`
+}
+
+function leerObPagadas(comercioId) {
+  try {
+    const raw = localStorage.getItem(obKey(comercioId))
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch { return new Set() }
+}
+
+function guardarObPagadas(comercioId, set) {
+  try {
+    localStorage.setItem(obKey(comercioId), JSON.stringify([...set]))
+  } catch {}
+}
+
 /* ── Componente principal ────────────────── */
 const HOY = new Date()
 
@@ -211,6 +231,11 @@ export default function Dashboard() {
   const { datos, loading, recargar } = useDashboard(comercioId)
   const [obPagadas,    setObPagadas]    = useState(new Set())
   const [selectedProv, setSelectedProv] = useState(null) // proveedor a pagar
+
+  // Cargar estado de obligaciones del mes desde localStorage
+  useEffect(() => {
+    if (comercioId) setObPagadas(leerObPagadas(comercioId))
+  }, [comercioId])
 
   /* Período de ventas */
   const [periodo, setPeriodo] = useState({ year: HOY.getFullYear(), month: HOY.getMonth() })
@@ -314,6 +339,7 @@ export default function Dashboard() {
     setObPagadas(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
+      guardarObPagadas(comercioId, next)
       return next
     })
   }
@@ -476,6 +502,12 @@ export default function Dashboard() {
             <p className="dash-empty">Sin centros de costo configurados</p>
           ) : (
             <div className="cc-bars">
+              {porCC.some(cc => cc.total > 0) && (
+                <p className="cc-total-periodo">
+                  Total del período:
+                  <strong>{fmt$(porCC.reduce((s, cc) => s + cc.total, 0))}</strong>
+                </p>
+              )}
               {(() => {
                 const maxVal   = Math.max(...porCC.map(cc => cc.total), 1)
                 const sinDatos = porCC.every(cc => cc.total === 0)
