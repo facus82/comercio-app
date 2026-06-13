@@ -7,6 +7,38 @@ const fmt$ = v =>
 
 const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
 
+/* ── Parser robusto de precios ──────────────────────────────────
+   Maneja todos los formatos que puede traer un Excel de proveedor:
+   150 | $150 | $150,00 | $ 150,00 | 1.200,00 | 1,200.00 | 1200.50
+───────────────────────────────────────────────────────────────── */
+function parsePrice(val) {
+  if (typeof val === 'number') return val          // XLSX ya lo parseó
+  const s = String(val ?? '')
+    .replace(/[$\s ]/g, '')                  // quitar $, espacios, nbsp
+    .trim()
+  if (!s) return 0
+
+  const hasComma = s.includes(',')
+  const hasDot   = s.includes('.')
+
+  if (hasComma && hasDot) {
+    // decidir cuál es separador decimal según el último que aparece
+    return s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? Number(s.replace(/\./g, '').replace(',', '.'))   // AR: 1.200,50
+      : Number(s.replace(/,/g, ''))                      // US: 1,200.50
+  }
+  if (hasComma) {
+    // solo coma → podría ser AR decimal (150,50) o miles (1,200) → AR
+    return Number(s.replace(',', '.'))
+  }
+  if (hasDot) {
+    // solo punto → miles AR (1.200) o decimal (1.5)
+    const afterDot = s.split('.')[1]
+    return afterDot?.length === 3 ? Number(s.replace('.', '')) : Number(s)
+  }
+  return Number(s) || 0
+}
+
 function norm(str) {
   return (str || '')
     .toLowerCase()
@@ -39,7 +71,7 @@ function matchProducto(fila, colCodigo, colNombre, productos) {
   return null
 }
 
-const CFG_KEY = (comercioId, proveedorId) => `excel_cfg_${comercioId}_${proveedorId}`
+const CFG_KEY = (cid, pid) => `excel_cfg_${cid}_${pid}`
 
 function cargarCfg(comercioId, proveedorId) {
   try { return JSON.parse(localStorage.getItem(CFG_KEY(comercioId, proveedorId)) || 'null') } catch { return null }
@@ -56,19 +88,21 @@ const PASOS = [
 ]
 
 export default function ComparadorProveedorModal({ productos, proveedores = [], comercioId, onActualizarMasivo, onCerrar }) {
-  const [paso,          setPaso]          = useState('upload')
-  const [filas,         setFilas]         = useState([])
-  const [columnas,      setColumnas]      = useState([])
-  const [colCodigo,     setColCodigo]     = useState('')
-  const [colNombre,     setColNombre]     = useState('')
-  const [colPrecio,     setColPrecio]     = useState('')
-  const [proveedorId,   setProveedorId]   = useState('')
-  const [cfgGuardada,   setCfgGuardada]   = useState(false)
-  const [errUpload,     setErrUpload]     = useState('')
-  const [saving,        setSaving]        = useState(false)
-  const [saveError,     setSaveError]     = useState('')
-  const [seleccionados, setSeleccionados] = useState(new Set())
-  const [filtro,        setFiltro]        = useState('todos')
+  const [paso,           setPaso]           = useState('upload')
+  const [filas,          setFilas]          = useState([])
+  const [columnas,       setColumnas]       = useState([])
+  const [colCodigo,      setColCodigo]      = useState('')
+  const [colNombre,      setColNombre]      = useState('')
+  const [colPrecio,      setColPrecio]      = useState('')   // precio lista
+  const [colPrecio2,     setColPrecio2]     = useState('')   // precio contado (opcional)
+  const [precioAplicar,  setPrecioAplicar]  = useState('lista')  // 'lista' | 'contado'
+  const [proveedorId,    setProveedorId]    = useState('')
+  const [cfgGuardada,    setCfgGuardada]    = useState(false)
+  const [errUpload,      setErrUpload]      = useState('')
+  const [saving,         setSaving]         = useState(false)
+  const [saveError,      setSaveError]      = useState('')
+  const [seleccionados,  setSeleccionados]  = useState(new Set())
+  const [filtro,         setFiltro]         = useState('todos')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -83,10 +117,18 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     if (!id || !columnas.length) return
     const cfg = cargarCfg(comercioId, id)
     if (!cfg) return
-    if (cfg.colCodigo && columnas.includes(cfg.colCodigo)) setColCodigo(cfg.colCodigo)
-    if (cfg.colNombre && columnas.includes(cfg.colNombre)) setColNombre(cfg.colNombre)
-    if (cfg.colPrecio && columnas.includes(cfg.colPrecio)) setColPrecio(cfg.colPrecio)
+    if (cfg.colCodigo  && columnas.includes(cfg.colCodigo))  setColCodigo(cfg.colCodigo)
+    if (cfg.colNombre  && columnas.includes(cfg.colNombre))  setColNombre(cfg.colNombre)
+    if (cfg.colPrecio  && columnas.includes(cfg.colPrecio))  setColPrecio(cfg.colPrecio)
+    if (cfg.colPrecio2 && columnas.includes(cfg.colPrecio2)) setColPrecio2(cfg.colPrecio2)
     setCfgGuardada(true)
+  }
+
+  function aplicarCfg(cfg, cols) {
+    setColCodigo(cfg.colCodigo  && cols.includes(cfg.colCodigo)  ? cfg.colCodigo  : '')
+    setColNombre(cfg.colNombre  && cols.includes(cfg.colNombre)  ? cfg.colNombre  : '')
+    setColPrecio(cfg.colPrecio  && cols.includes(cfg.colPrecio)  ? cfg.colPrecio  : '')
+    setColPrecio2(cfg.colPrecio2 && cols.includes(cfg.colPrecio2) ? cfg.colPrecio2 : '')
   }
 
   function onFileChange(e) {
@@ -105,10 +147,8 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
         setColumnas(cols)
 
         const cfg = proveedorId ? cargarCfg(comercioId, proveedorId) : null
-        if (cfg && cols.includes(cfg.colPrecio)) {
-          setColCodigo(cfg.colCodigo && cols.includes(cfg.colCodigo) ? cfg.colCodigo : '')
-          setColNombre(cfg.colNombre && cols.includes(cfg.colNombre) ? cfg.colNombre : '')
-          setColPrecio(cfg.colPrecio)
+        if (cfg && cfg.colPrecio && cols.includes(cfg.colPrecio)) {
+          aplicarCfg(cfg, cols)
           setCfgGuardada(true)
           setSeleccionados(new Set())
           setPaso('informe')
@@ -116,7 +156,12 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
           const detectar = (kws) => cols.find(c => kws.some(k => norm(c).includes(k))) || ''
           setColCodigo(detectar(['codigo', 'sku', 'cod', 'barras', 'art', 'articulo']))
           setColNombre(detectar(['nombre', 'descripcion', 'producto', 'detalle', 'desc']))
-          setColPrecio(detectar(['precio', 'costo', 'price', 'importe', 'valor', 'unitario']))
+          // auto-detectar precio lista y precio contado
+          const pLista   = detectar(['lista'])
+          const pContado = detectar(['contado', 'efectivo', 'conta'])
+          const pGeneral = detectar(['precio', 'costo', 'price', 'importe', 'valor', 'unitario'])
+          setColPrecio(pLista || pGeneral)
+          setColPrecio2(pContado !== (pLista || pGeneral) ? pContado : '')
           setCfgGuardada(false)
           setPaso('mapeo')
         }
@@ -127,17 +172,22 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     reader.readAsArrayBuffer(file)
   }
 
+  /* ── Informe: cruza filas con catálogo ── */
   const informe = useMemo(() => {
     if (paso !== 'informe' || !colPrecio) return []
     return filas.map((fila, idx) => {
-      const producto        = matchProducto(fila, colCodigo, colNombre, productos)
-      const precioProveedor = Number(String(fila[colPrecio] ?? '').replace(',', '.')) || 0
-      if (!precioProveedor) return null
+      const producto   = matchProducto(fila, colCodigo, colNombre, productos)
+      const pLista     = parsePrice(fila[colPrecio])
+      const pContado   = colPrecio2 ? parsePrice(fila[colPrecio2]) : null
+      if (!pLista) return null
+
       const costoActual = producto ? Number(producto.precio_costo) || 0 : 0
-      const variacion   = costoActual > 0 ? ((precioProveedor - costoActual) / costoActual) * 100 : null
-      return { _idx: idx, fila, producto, precioProveedor, costoActual, variacion }
+      const precioRef   = precioAplicar === 'contado' && pContado ? pContado : pLista
+      const variacion   = costoActual > 0 ? ((precioRef - costoActual) / costoActual) * 100 : null
+
+      return { _idx: idx, fila, producto, pLista, pContado, precioRef, costoActual, variacion }
     }).filter(Boolean)
-  }, [paso, filas, colCodigo, colNombre, colPrecio, productos])
+  }, [paso, filas, colCodigo, colNombre, colPrecio, colPrecio2, precioAplicar, productos])
 
   const informeFiltrado = useMemo(() => {
     if (filtro === 'emparejados') return informe.filter(r => r.producto)
@@ -153,6 +203,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     bajaron:     informe.filter(r => r.variacion !== null && r.variacion < -0.5).length,
   }), [informe])
 
+  /* ── Selección ── */
   const emparejadosFiltrados = informeFiltrado.filter(r => r.producto)
   const todosSeleccionados   = emparejadosFiltrados.length > 0 &&
     emparejadosFiltrados.every(r => seleccionados.has(r._idx))
@@ -170,6 +221,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     setSeleccionados(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n })
   }
 
+  /* ── Aplicar costos ── */
   async function handleAplicar() {
     setSaveError('')
     const filasSel = informe.filter(r => seleccionados.has(r._idx) && r.producto)
@@ -180,8 +232,8 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
       const factor    = costoOrig > 0 ? ventaOrig / costoOrig : 1
       return {
         id:               r.producto.id,
-        precio_costo:     r.precioProveedor,
-        precio_venta:     +(r.precioProveedor * factor).toFixed(2),
+        precio_costo:     r.precioRef,
+        precio_venta:     +(r.precioRef * factor).toFixed(2),
         precio_mayorista: r.producto.precio_mayorista ?? null,
       }
     })
@@ -192,24 +244,39 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     else onCerrar()
   }
 
+  /* ── Exportar ── */
   function exportar() {
-    const rows = informe.map(r => ({
-      'Producto catálogo':     r.producto?.nombre || '— sin coincidencia —',
-      'Descripción proveedor': colNombre ? String(r.fila[colNombre] ?? '') : '',
-      'Código proveedor':      colCodigo ? String(r.fila[colCodigo] ?? '') : '',
-      'Costo actual':          r.costoActual || '',
-      'Precio proveedor':      r.precioProveedor,
-      'Variación $':           r.costoActual > 0 ? +(r.precioProveedor - r.costoActual).toFixed(2) : '',
-      'Variación %':           r.variacion !== null ? +r.variacion.toFixed(2) : '',
-    }))
+    const rows = informe.map(r => {
+      const row = {
+        'Producto catálogo':     r.producto?.nombre || '— sin coincidencia —',
+        'Descripción proveedor': colNombre ? String(r.fila[colNombre] ?? '') : '',
+        'Código proveedor':      colCodigo ? String(r.fila[colCodigo] ?? '') : '',
+        'Costo actual':          r.costoActual || '',
+        'Precio lista':          r.pLista,
+      }
+      if (colPrecio2) row['Precio contado'] = r.pContado ?? ''
+      row['Precio a aplicar'] = r.precioRef
+      row['Variación $']  = r.costoActual > 0 ? +(r.precioRef - r.costoActual).toFixed(2) : ''
+      row['Variación %']  = r.variacion !== null ? +r.variacion.toFixed(2) : ''
+      return row
+    })
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }]
+    ws['!cols'] = [28, 28, 14, 13, 13, 13, 13, 11, 11].map(w => ({ wch: w }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Comparador')
     XLSX.writeFile(wb, `comparador_precios_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  const pasoIdx = PASOS.findIndex(p => p.id === paso)
+  function confirmarMapeo() {
+    if (proveedorId) guardarCfg(comercioId, proveedorId, { colCodigo, colNombre, colPrecio, colPrecio2 })
+    setSeleccionados(new Set())
+    setPaso('informe')
+  }
+
+  const pasoIdx   = PASOS.findIndex(p => p.id === paso)
+  const hayDoble  = !!colPrecio2
+  const labelLista   = 'Precio lista'
+  const labelContado = 'Precio contado'
 
   /* ════════════════════════════════════════════════
      RENDER
@@ -219,7 +286,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
       <div className="apm-backdrop" onClick={onCerrar} />
       <div className="apm-modal comp-modal">
 
-        {/* ── Header con stepper ── */}
+        {/* Header */}
         <div className="apm-header">
           <div className="apm-header-title">
             <i className="ti ti-file-diff" />
@@ -244,33 +311,25 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
         {/* ══ PASO 1: UPLOAD ══ */}
         {paso === 'upload' && (
           <div className="comp-upload-body">
-
-            {/* Intro */}
             <div className="comp-upload-intro">
               <div className="comp-upload-intro-icon">
                 <i className="ti ti-file-diff" />
               </div>
               <div className="comp-upload-intro-text">
                 <h3>Subí la lista de precios de tu proveedor</h3>
-                <p>El sistema la cruza contra tu catálogo y te muestra qué productos subieron o bajaron de precio. Podés aplicar los nuevos costos directamente.</p>
+                <p>El sistema la cruza contra tu catálogo y te muestra qué productos subieron o bajaron. Podés aplicar los nuevos costos directamente.</p>
               </div>
             </div>
 
             <div className="comp-upload-main">
-
-              {/* Selector proveedor */}
               {proveedores.length > 0 && (
                 <div className="comp-prov-sel">
                   <div className="comp-prov-sel-header">
                     <i className="ti ti-building-store" />
                     <strong>Proveedor</strong>
-                    <span>— opcional, pero recuerda el formato del Excel</span>
+                    <span>— recuerda el formato del Excel</span>
                   </div>
-                  <select
-                    className="field-select"
-                    value={proveedorId}
-                    onChange={e => setProveedorId(e.target.value)}
-                  >
+                  <select className="field-select" value={proveedorId} onChange={e => setProveedorId(e.target.value)}>
                     <option value="">— Sin especificar —</option>
                     {proveedores.map(p => (
                       <option key={p.id} value={p.id}>
@@ -287,7 +346,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 </div>
               )}
 
-              {/* Dropzone */}
               <div
                 className="comp-dropzone"
                 onClick={() => inputRef.current?.click()}
@@ -314,7 +372,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
 
               <div className="comp-upload-hint">
                 <i className="ti ti-info-circle" />
-                El archivo puede tener cualquier formato — en el siguiente paso indicás qué columna es el código, el nombre y el precio.
+                Acepta cualquier formato numérico: $150, $1.200,00, $ 1.200,00, 1200.50, etc.
               </div>
             </div>
           </div>
@@ -324,20 +382,14 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
         {paso === 'mapeo' && (
           <>
             <div className="comp-mapeo-body">
-
-              {/* Barra top */}
               <div className="comp-mapeo-top">
                 <p className="comp-mapeo-desc">
                   <strong>{filas.length} filas</strong> · <strong>{columnas.length} columnas</strong> — indicá cuál corresponde a cada campo:
                 </p>
                 {proveedores.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <select
-                      className="field-select"
-                      value={proveedorId}
-                      onChange={e => onProveedorChange(e.target.value)}
-                      style={{ maxWidth: 220 }}
-                    >
+                    <select className="field-select" value={proveedorId}
+                      onChange={e => onProveedorChange(e.target.value)} style={{ maxWidth: 220 }}>
                       <option value="">— Sin proveedor —</option>
                       {proveedores.map(p => (
                         <option key={p.id} value={p.id}>{p.razon_social || p.nombre}</option>
@@ -353,9 +405,9 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 )}
               </div>
 
-              {/* Cards de columnas */}
-              <div className="comp-mapeo-cols">
-                {/* Código */}
+              {/* Cards de columnas — 2 filas: identificación + precios */}
+              <div className="comp-mapeo-cols comp-mapeo-cols--2rows">
+                {/* Fila 1: código + nombre */}
                 <div className={`comp-col-card${colCodigo ? ' comp-col-card--active' : ''}`}>
                   <div className="comp-col-card-header">
                     <div className="comp-col-card-icon comp-col-card-icon--cod">
@@ -372,7 +424,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                   </select>
                 </div>
 
-                {/* Nombre */}
                 <div className={`comp-col-card${colNombre ? ' comp-col-card--active' : ''}`}>
                   <div className="comp-col-card-header">
                     <div className="comp-col-card-icon comp-col-card-icon--nom">
@@ -389,21 +440,43 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                   </select>
                 </div>
 
-                {/* Precio */}
-                <div className={`comp-col-card${colPrecio ? ' comp-col-card--active' : ''}`}>
-                  <div className="comp-col-card-header">
-                    <div className="comp-col-card-icon comp-col-card-icon--prec">
-                      <i className="ti ti-currency-dollar" />
+                {/* Fila 2 / columna vacía para alinear con precio contado */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                  {/* Precio lista */}
+                  <div className={`comp-col-card${colPrecio ? ' comp-col-card--active' : ''}`}>
+                    <div className="comp-col-card-header">
+                      <div className="comp-col-card-icon comp-col-card-icon--prec">
+                        <i className="ti ti-tag-starred" />
+                      </div>
+                      <div>
+                        <div className="comp-col-card-title">Precio lista <span className="field-required">*</span></div>
+                        <div className="comp-col-card-sub">Precio de referencia del proveedor</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="comp-col-card-title">Precio / Costo <span className="field-required">*</span></div>
-                      <div className="comp-col-card-sub">Requerido</div>
-                    </div>
+                    <select className="field-select" value={colPrecio} onChange={e => setColPrecio(e.target.value)}>
+                      <option value="">— Seleccioná —</option>
+                      {columnas.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                   </div>
-                  <select className="field-select" value={colPrecio} onChange={e => setColPrecio(e.target.value)}>
-                    <option value="">— Seleccioná —</option>
-                    {columnas.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+
+                  {/* Precio contado (opcional) */}
+                  <div className={`comp-col-card comp-col-card--contado${colPrecio2 ? ' comp-col-card--active' : ''}`}>
+                    <div className="comp-col-card-header">
+                      <div className="comp-col-card-icon comp-col-card-icon--prec2">
+                        <i className="ti ti-currency-dollar" />
+                      </div>
+                      <div>
+                        <div className="comp-col-card-title">Precio contado <span className="comp-col-card-opt">opcional</span></div>
+                        <div className="comp-col-card-sub">Para mayoristas con doble precio</div>
+                      </div>
+                    </div>
+                    <select className="field-select" value={colPrecio2} onChange={e => setColPrecio2(e.target.value)}>
+                      <option value="">— No usar —</option>
+                      {columnas.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
                 </div>
               </div>
 
@@ -417,14 +490,16 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                         <tr>
                           {columnas.map(c => (
                             <th key={c} className={
-                              c === colCodigo ? 'comp-col--codigo' :
-                              c === colNombre ? 'comp-col--nombre' :
-                              c === colPrecio ? 'comp-col--precio' : ''
+                              c === colCodigo  ? 'comp-col--codigo' :
+                              c === colNombre  ? 'comp-col--nombre' :
+                              c === colPrecio  ? 'comp-col--precio' :
+                              c === colPrecio2 ? 'comp-col--precio2' : ''
                             }>
                               {c}
-                              {c === colCodigo && <span className="comp-col-tag comp-col-tag--cod">código</span>}
-                              {c === colNombre && <span className="comp-col-tag">nombre</span>}
-                              {c === colPrecio && <span className="comp-col-tag comp-col-tag--precio">precio</span>}
+                              {c === colCodigo  && <span className="comp-col-tag comp-col-tag--cod">código</span>}
+                              {c === colNombre  && <span className="comp-col-tag">nombre</span>}
+                              {c === colPrecio  && <span className="comp-col-tag comp-col-tag--precio">lista</span>}
+                              {c === colPrecio2 && <span className="comp-col-tag comp-col-tag--precio2">contado</span>}
                             </th>
                           ))}
                         </tr>
@@ -455,11 +530,7 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 <button
                   className="btn btn--primary"
                   disabled={!colPrecio || (!colCodigo && !colNombre)}
-                  onClick={() => {
-                    if (proveedorId) guardarCfg(comercioId, proveedorId, { colCodigo, colNombre, colPrecio })
-                    setSeleccionados(new Set())
-                    setPaso('informe')
-                  }}
+                  onClick={confirmarMapeo}
                 >
                   <i className="ti ti-chart-bar" /> Ver informe
                 </button>
@@ -471,7 +542,6 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
         {/* ══ PASO 3: INFORME ══ */}
         {paso === 'informe' && (
           <>
-            {/* Banner proveedor */}
             {proveedorId && (() => {
               const prov = proveedores.find(p => p.id === proveedorId)
               return prov ? (
@@ -502,13 +572,34 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
               <div className="comp-stat comp-stat--danger">
                 <i className="ti ti-trending-up comp-stat-icon" />
                 <span className="comp-stat-val">{stats.subieron}</span>
-                <span className="comp-stat-label">Subieron precio</span>
+                <span className="comp-stat-label">Subieron</span>
               </div>
               <div className="comp-stat comp-stat--success">
                 <i className="ti ti-trending-down comp-stat-icon" />
                 <span className="comp-stat-val">{stats.bajaron}</span>
-                <span className="comp-stat-label">Bajaron precio</span>
+                <span className="comp-stat-label">Bajaron</span>
               </div>
+
+              {/* Selector qué precio aplicar — solo si hay doble precio */}
+              {hayDoble && (
+                <div className="comp-stat comp-precio-selector">
+                  <span className="comp-stat-label" style={{ marginBottom: 6 }}>Precio a comparar / aplicar</span>
+                  <div className="comp-precio-pills">
+                    <button
+                      className={`pill${precioAplicar === 'lista' ? ' pill--active' : ''}`}
+                      onClick={() => setPrecioAplicar('lista')}
+                    >
+                      <i className="ti ti-tag-starred" /> Lista
+                    </button>
+                    <button
+                      className={`pill${precioAplicar === 'contado' ? ' pill--active' : ''}`}
+                      onClick={() => setPrecioAplicar('contado')}
+                    >
+                      <i className="ti ti-currency-dollar" /> Contado
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Filtros */}
@@ -534,18 +625,15 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                 <thead>
                   <tr>
                     <th style={{ width: 36 }}>
-                      <input
-                        type="checkbox"
-                        checked={todosSeleccionados}
+                      <input type="checkbox" checked={todosSeleccionados}
                         ref={el => { if (el) el.indeterminate = !todosSeleccionados && algunoSeleccionado }}
-                        onChange={toggleTodos}
-                        disabled={emparejadosFiltrados.length === 0}
-                      />
+                        onChange={toggleTodos} disabled={emparejadosFiltrados.length === 0} />
                     </th>
                     <th>Producto catálogo</th>
                     <th>Descripción proveedor</th>
                     <th className="td-right">Costo actual</th>
-                    <th className="td-right">Precio proveedor</th>
+                    <th className="td-right">{labelLista}</th>
+                    {hayDoble && <th className="td-right">{labelContado}</th>}
                     <th className="td-right">Variación</th>
                   </tr>
                 </thead>
@@ -558,12 +646,10 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                     const igual = vPct !== null && !subio && !bajo
 
                     return (
-                      <tr
-                        key={r._idx}
+                      <tr key={r._idx}
                         className={r.producto ? (sel ? 'apm-row--selected' : '') : 'comp-row--no-match'}
                         onClick={() => r.producto && toggleFila(r._idx)}
-                        style={{ cursor: r.producto ? 'pointer' : 'default' }}
-                      >
+                        style={{ cursor: r.producto ? 'pointer' : 'default' }}>
                         <td onClick={e => e.stopPropagation()}>
                           {r.producto && <input type="checkbox" checked={sel} onChange={() => toggleFila(r._idx)} />}
                         </td>
@@ -581,9 +667,16 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                         <td className="td-right td-muted">
                           {r.costoActual > 0 ? fmt$(r.costoActual) : <span className="td-muted">—</span>}
                         </td>
-                        <td className="td-right" style={{ fontWeight: 500 }}>
-                          {fmt$(r.precioProveedor)}
+                        <td className={`td-right${precioAplicar === 'lista' && hayDoble ? ' comp-col-ref' : ''}`}
+                          style={{ fontWeight: hayDoble && precioAplicar !== 'lista' ? 400 : 500 }}>
+                          {fmt$(r.pLista)}
                         </td>
+                        {hayDoble && (
+                          <td className={`td-right${precioAplicar === 'contado' ? ' comp-col-ref' : ''}`}
+                            style={{ fontWeight: precioAplicar === 'contado' ? 500 : 400 }}>
+                            {r.pContado != null ? fmt$(r.pContado) : <span className="td-muted">—</span>}
+                          </td>
+                        )}
                         <td className="td-right">
                           {vPct !== null ? (
                             <span className={`badge ${subio ? 'badge--danger' : bajo ? 'badge--success' : 'badge--neutral'}`} style={{ fontSize: 10 }}>
@@ -616,21 +709,22 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
                   <span className="apm-sel-count">
                     <i className="ti ti-check" />
                     {seleccionados.size} producto{seleccionados.size !== 1 ? 's' : ''} seleccionado{seleccionados.size !== 1 ? 's' : ''}
+                    {hayDoble && (
+                      <span className="td-muted" style={{ fontWeight: 400 }}>
+                        {' '}— se aplica precio {precioAplicar === 'contado' ? 'contado' : 'lista'}
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
               <div className="apm-footer-btns">
                 <button className="btn" onClick={exportar}>
-                  <i className="ti ti-download" /> Exportar informe
+                  <i className="ti ti-download" /> Exportar
                 </button>
                 <button className="btn" onClick={onCerrar}>
                   <i className="ti ti-x" /> Cerrar
                 </button>
-                <button
-                  className="btn btn--primary"
-                  disabled={saving || seleccionados.size === 0}
-                  onClick={handleAplicar}
-                >
+                <button className="btn btn--primary" disabled={saving || seleccionados.size === 0} onClick={handleAplicar}>
                   <i className={`ti ${saving ? 'ti-loader-2' : 'ti-coins'}`} />
                   {saving ? 'Aplicando...' : `Aplicar ${seleccionados.size || ''} costo${seleccionados.size !== 1 ? 's' : ''}`}
                 </button>

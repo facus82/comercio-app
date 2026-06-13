@@ -550,6 +550,64 @@
 /* Filas sin match */
 .comp-row--no-match { opacity: 0.4; }
 
+/* Grid 2 filas: [código, nombre] arriba / [precio lista + contado apilados] derecha */
+.comp-mapeo-cols--2rows {
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: start;
+}
+
+/* Card precio contado — borde diferenciado */
+.comp-col-card--contado {
+  border-style: dashed;
+}
+
+.comp-col-card--contado.comp-col-card--active {
+  border-style: solid;
+}
+
+/* Ícono precio contado */
+.comp-col-card-icon--prec2 {
+  background: color-mix(in srgb, #8B5CF6 15%, transparent);
+}
+.comp-col-card-icon--prec2 .ti { color: #8B5CF6; font-size: 14px; }
+
+/* Tag "contado" en preview */
+.comp-col--precio2  { background: color-mix(in srgb, #8B5CF6 8%, transparent) !important; }
+.comp-col-tag--precio2 { background: #8B5CF6; }
+
+/* Badge opcional en card */
+.comp-col-card-opt {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  margin-left: 4px;
+}
+
+/* Columna activa/referencia en tabla */
+.comp-col-ref {
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+/* Selector lista/contado dentro de stats */
+.comp-precio-selector {
+  flex: 1.5;
+  align-items: flex-start;
+  padding-left: 16px;
+  border-left: 1px solid var(--color-border);
+}
+
+.comp-precio-pills {
+  display: flex;
+  gap: 5px;
+}
+
+.comp-precio-pills .pill {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Mapeo header */
 .comp-mapeo-header {
   display: flex;
