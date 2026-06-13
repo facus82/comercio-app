@@ -14,6 +14,7 @@ const CONDICIONES_IVA = ['Responsable Inscripto','Monotributista','Exento','Cons
 
 // ── Comercio ──────────────────────────────────────────────────
 function TabComercio({ comercioId }) {
+  const { refreshPerfil } = useAuth()
   const [form,        setForm]        = useState(null)
   const [saving,      setSaving]      = useState(false)
   const [ok,          setOk]          = useState(false)
@@ -70,7 +71,7 @@ function TabComercio({ comercioId }) {
     }).eq('id', comercioId)
     setSaving(false)
     if (error) setError(error.message)
-    else setOk(true)
+    else { setOk(true); refreshPerfil() }
   }
 
   if (!form) return <div className="table-loading"><i className="ti ti-loader-2" style={{ fontSize: 24, opacity: 0.4 }} /></div>
