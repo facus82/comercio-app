@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import BottomNav from './BottomNav'
-import { ToastProvider } from '../../hooks/useToast'
+import { ToastProvider } from '../../hooks/useToast.jsx'
 import './AppLayout.css'
 
 export default function AppLayout() {
