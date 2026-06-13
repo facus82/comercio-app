@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useCompras } from '../../hooks/useCompras'
+import CompraDetallePanel from './CompraDetallePanel'
 import './Compras.css'
 
 const fmt$ = v =>
@@ -37,10 +38,11 @@ export default function Compras() {
   const { perfil }  = useAuth()
   const comercioId  = perfil?.comercio?.id
 
-  const { compras, loading, actualizarEstado } = useCompras(comercioId, perfil?.id)
+  const { compras, loading, cargarItems, registrarPago, revertirEstado } = useCompras(comercioId, perfil?.id)
 
-  const [busqueda,     setBusqueda]     = useState('')
-  const [filtroEstado, setFiltroEstado] = useState(null)
+  const [busqueda,      setBusqueda]      = useState('')
+  const [filtroEstado,  setFiltroEstado]  = useState(null)
+  const [compraActiva,  setCompraActiva]  = useState(null)
 
   const filtradas = useMemo(() => {
     const q = busqueda.toLowerCase()
@@ -137,12 +139,11 @@ export default function Compras() {
                 <th className="td-right">IVA</th>
                 <th className="td-right">Total</th>
                 <th>Estado</th>
-                <th />
               </tr>
             </thead>
             <tbody>
               {filtradas.map(c => (
-                <tr key={c.id}>
+                <tr key={c.id} onClick={() => setCompraActiva(c)}>
                   <td className="td-mono td-muted">{fmtFecha(c.fecha)}</td>
                   <td className="compra-prov">
                     {c.proveedor?.nombre_fantasia || c.proveedor?.razon_social || '—'}
@@ -157,17 +158,6 @@ export default function Compras() {
                       {c.estado.charAt(0).toUpperCase() + c.estado.slice(1)}
                     </span>
                   </td>
-                  <td className="td-actions" onClick={e => e.stopPropagation()}>
-                    {c.estado === 'pendiente' && (
-                      <button
-                        className="btn-icon"
-                        title="Marcar pagada"
-                        onClick={() => actualizarEstado(c.id, 'pagada')}
-                      >
-                        <i className="ti ti-check" />
-                      </button>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -180,6 +170,19 @@ export default function Compras() {
           {filtradas.length} compra{filtradas.length !== 1 ? 's' : ''}
           {busqueda || filtroEstado ? ' (filtrado)' : ''}
         </p>
+      )}
+
+      {compraActiva && (
+        <CompraDetallePanel
+          compra={compraActiva}
+          cargarItems={cargarItems}
+          registrarPago={registrarPago}
+          revertirEstado={revertirEstado}
+          onCerrar={() => setCompraActiva(null)}
+          onActualizado={nuevoEstado =>
+            setCompraActiva(prev => prev ? { ...prev, estado: nuevoEstado } : prev)
+          }
+        />
       )}
 
     </div>

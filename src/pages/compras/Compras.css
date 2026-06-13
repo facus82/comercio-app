@@ -223,6 +223,278 @@
 
 .compra-flete-info i { font-size: 14px; }
 
+/* ── Filas clicables ────────────────────────────────────── */
+.data-table tbody tr {
+  cursor: pointer;
+}
+
+.data-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+/* ── Panel detalle de compra (cdp) ──────────────────────── */
+.cdp {
+  width: 480px;
+}
+
+.cdp-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdp-title {
+  font-size: 15px !important;
+  margin: 0;
+}
+
+/* Meta datos */
+.cdp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.cdp-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cdp-meta-full {
+  flex-basis: 100%;
+}
+
+.cdp-meta-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-text-tertiary);
+}
+
+.cdp-meta-val {
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+/* Loading */
+.cdp-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 8px 0;
+}
+
+/* Items table */
+.cdp-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.cdp-items-head {
+  display: grid;
+  grid-template-columns: 1fr 56px 80px 80px;
+  gap: 6px;
+  padding: 0 2px 4px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-text-secondary);
+}
+
+.cdp-item-row {
+  display: grid;
+  grid-template-columns: 1fr 56px 80px 80px;
+  gap: 6px;
+  padding: 4px 2px;
+  font-size: 12px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.cdp-item-nombre {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Totales */
+.cdp-totales {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+  padding-top: 8px;
+}
+
+.cdp-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.cdp-total-row--final {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  border-top: 0.5px solid var(--color-border-tertiary);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.cdp-total-row--pagado {
+  color: var(--color-success);
+  font-size: 12px;
+}
+
+.cdp-total-row--saldo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-warning-700);
+  background: var(--color-warning-50);
+  border: 0.5px solid var(--color-warning-200);
+  border-radius: 6px;
+  padding: 5px 10px;
+  margin-top: 2px;
+}
+
+/* Historial pagos */
+.cdp-pagos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdp-pago-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.cdp-pago-num {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.cdp-pago-concepto {
+  flex: 1;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.cdp-pago-monto {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Medio de pago */
+.cdp-medios {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cdp-medio-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 0.5px solid var(--color-border-input);
+  border-radius: 8px;
+  background: var(--color-bg-card);
+  cursor: pointer;
+  font-family: var(--font-family-base);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+  line-height: 1.2;
+}
+
+.cdp-medio-btn i { font-size: 16px; }
+
+.cdp-medio-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-bg-card));
+}
+
+.cdp-medio-btn--sel {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-card));
+  color: var(--color-accent);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Referencia (campo ancho) */
+.cdp-ref-field {
+  grid-column: 1 / -1;
+}
+
+/* Hints */
+.cdp-hint--warn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-warning-600) !important;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.cdp-hint--ok {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-success) !important;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+/* Botón revertir */
+.cdp-revertir-btn {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.cdp-revertir-btn:hover {
+  color: var(--color-text-primary);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Fecha vencimiento por ítem ──────────────────────────── */
 .ci-vto-row {
   grid-column: 1 / -1;

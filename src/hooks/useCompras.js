@@ -148,5 +148,66 @@ export function useCompras(comercioId, perfilId) {
     return { error }
   }
 
-  return { compras, loading, error, cargar, cargarItems, crear, actualizarEstado }
+  async function registrarPago(compraId, proveedorId, { monto, medioLabel, fecha, referencia }) {
+    const montoNum = Number(monto)
+    const compra = compras.find(c => c.id === compraId)
+    if (!compra) return { error: { message: 'Compra no encontrada' } }
+
+    // Determinar nuevo estado según total ya abonado
+    const { data: pagosExistentes } = await supabase
+      .from('proveedores_cc')
+      .select('monto')
+      .eq('referencia_tipo', 'compra')
+      .eq('referencia_id', compraId)
+      .eq('tipo', 'pago')
+
+    const yaAbonado    = (pagosExistentes || []).reduce((s, p) => s + Number(p.monto), 0)
+    const totalAbonado = yaAbonado + montoNum
+    const nuevoEstado  = totalAbonado >= Number(compra.total) - 0.01 ? 'pagada' : 'parcial'
+
+    const { error: errEstado } = await supabase
+      .from('compras').update({ estado: nuevoEstado }).eq('id', compraId)
+    if (errEstado) return { error: errEstado }
+
+    // Obtener último saldo del proveedor
+    const { data: ultimo } = await supabase
+      .from('proveedores_cc')
+      .select('saldo_posterior')
+      .eq('proveedor_id', proveedorId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const saldoAnt = Number(ultimo?.saldo_posterior ?? 0)
+    const refLabel = compra.numero_comprobante
+      ? ` ${compra.numero_comprobante}`
+      : compra.numero ? ` #${compra.numero}` : ''
+
+    const { error: errCC } = await supabase.from('proveedores_cc').insert({
+      proveedor_id:    proveedorId,
+      tipo:            'pago',
+      monto:           montoNum,
+      saldo_anterior:  saldoAnt,
+      saldo_posterior: saldoAnt - montoNum,
+      concepto:        `Pago${refLabel} · ${medioLabel} · ${fecha}${referencia ? ` · ${referencia}` : ''}`,
+      referencia_tipo: 'compra',
+      referencia_id:   compraId,
+      usuario_id:      perfilId ?? null,
+    })
+    if (errCC) return { error: errCC }
+
+    setCompras(prev => prev.map(c => c.id === compraId ? { ...c, estado: nuevoEstado } : c))
+    return { data: { estado: nuevoEstado } }
+  }
+
+  async function revertirEstado(compraId, nuevoEstado = 'pendiente') {
+    const { error } = await supabase
+      .from('compras').update({ estado: nuevoEstado }).eq('id', compraId)
+    if (!error) {
+      setCompras(prev => prev.map(c => c.id === compraId ? { ...c, estado: nuevoEstado } : c))
+    }
+    return { error }
+  }
+
+  return { compras, loading, error, cargar, cargarItems, crear, actualizarEstado, registrarPago, revertirEstado }
 }
