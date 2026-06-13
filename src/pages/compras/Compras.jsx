@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useCompras } from '../../hooks/useCompras'
 import CompraDetallePanel from './CompraDetallePanel'
+import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import './Compras.css'
 
 const fmt$ = v =>
@@ -135,10 +136,16 @@ export default function Compras() {
 
       <div className="table-wrap">
         {loading ? (
-          <div className="table-loading">
-            <i className="ti ti-loader-2" style={{ fontSize: 28, opacity: 0.4 }} />
-            Cargando compras...
-          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Proveedor</th><th>Comprobante</th>
+                <th>N° comprobante</th><th className="td-right">Subtotal</th>
+                <th className="td-right">IVA</th><th className="td-right">Total</th><th>Estado</th>
+              </tr>
+            </thead>
+            <SkeletonTableBody rows={6} cols={8} />
+          </table>
         ) : filtradas.length === 0 ? (
           <div className="table-empty">
             <i className="ti ti-shopping-cart" />

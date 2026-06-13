@@ -7,6 +7,7 @@ import ImportarExcel from './ImportarExcel'
 import ActualizarPreciosModal from './ActualizarPreciosModal'
 import PromocionesModal from './PromocionesModal'
 import ComparadorProveedorModal from './ComparadorProveedorModal'
+import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import './Stock.css'
 
 const fmt$ = v =>
@@ -175,10 +176,16 @@ export default function Stock() {
       {/* Tabla */}
       <div className="table-wrap">
         {loading ? (
-          <div className="table-loading">
-            <i className="ti ti-loader-2" style={{ fontSize: 28, opacity: 0.4 }} />
-            Cargando productos...
-          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Código</th><th>Nombre</th><th>Categoría</th>
+                <th className="td-right">Costo</th><th className="td-right">Venta c/IVA</th>
+                <th>Stock</th><th>Estado</th><th />
+              </tr>
+            </thead>
+            <SkeletonTableBody rows={8} cols={8} />
+          </table>
         ) : productosFiltrados.length === 0 ? (
           <div className="table-empty">
             <i className="ti ti-package" />

@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
 import * as XLSX from 'xlsx'
+import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import './Ventas.css'
 
 const fmt$ = v =>
@@ -493,11 +494,14 @@ export default function Ventas() {
     const descMonto        = +(totalBruto * descPct / 100).toFixed(2)
     const ahorroPromosMonto = +ahorroPromos.toFixed(2)
     const total            = +(totalBruto - descMonto - ahorroPromosMonto).toFixed(2)
-    const totalPagos       = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
-    const diferencia       = +(totalPagos - total).toFixed(2)
-    const pagoCompleto     = carrito.length > 0 && Math.abs(diferencia) < 0.01
+    const totalPagos          = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
+    const diferencia          = +(totalPagos - total).toFixed(2)
+    const hayEfectivoCargado  = pagos.some(p => p.medio_pago === 'efectivo' && Number(p.monto) > 0)
+    const sobrepagoEnEfectivo = diferencia > 0.009 && hayEfectivoCargado
+    const pagoCompleto        = carrito.length > 0 && total > 0 && (Math.abs(diferencia) < 0.01 || sobrepagoEnEfectivo)
+    const vuelto              = sobrepagoEnEfectivo ? diferencia : 0
 
-    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, ahorroPromosMonto, total, totalPagos, diferencia, pagoCompleto }
+    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, ahorroPromosMonto, total, totalPagos, diferencia, pagoCompleto, sobrepagoEnEfectivo, vuelto }
   }, [carrito, pagos, descuentoEfectivoPct, promociones])
 
   /* ── CCs en carrito (aviso 2 comprobantes) ── */
@@ -547,6 +551,22 @@ export default function Ventas() {
 
     const promosAplicadas = calcularPromosAplicadas(carrito, pagos, promociones)
 
+    // Si hay vuelto, ajustar el efectivo para que los pagos sumen exactamente el total
+    let pagosFinales = pagos
+      .filter(p => Number(p.monto) > 0)
+      .map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) }))
+    if (totales.vuelto > 0.009) {
+      let restante = totales.vuelto
+      for (let i = pagosFinales.length - 1; i >= 0 && restante > 0.009; i--) {
+        if (pagosFinales[i].medio_pago === 'efectivo') {
+          const reduccion = Math.min(pagosFinales[i].monto, restante)
+          pagosFinales[i] = { ...pagosFinales[i], monto: +(pagosFinales[i].monto - reduccion).toFixed(2) }
+          restante -= reduccion
+        }
+      }
+      pagosFinales = pagosFinales.filter(p => p.monto > 0.009)
+    }
+
     const res = await crear(
       {
         cliente_id:       clienteSeleccionado?.id || null,
@@ -556,7 +576,7 @@ export default function Ventas() {
         recargo_monto: 0, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
       },
       itemsVenta,
-      pagos.filter(p => Number(p.monto) > 0).map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) })),
+      pagosFinales,
       promosAplicadas,
     )
     setSaving(false)
@@ -974,14 +994,20 @@ export default function Ventas() {
               </div>
             )}
 
-            {/* Diferencia si no cuadra */}
-            {carrito.length > 0 && totales.totalPagos > 0 && !totales.pagoCompleto && (
-              <div className={`pos-diferencia${totales.diferencia > 0 ? ' pos-diferencia--sobre' : ' pos-diferencia--faltan'}`}>
-                <i className={`ti ${totales.diferencia > 0 ? 'ti-arrow-up' : 'ti-arrow-down'}`} />
-                {totales.diferencia > 0
-                  ? `Sobran ${fmt$(Math.abs(totales.diferencia))}`
-                  : `Faltan ${fmt$(Math.abs(totales.diferencia))}`
-                }
+            {/* Vuelto a dar */}
+            {totales.sobrepagoEnEfectivo && (
+              <div className="pos-vuelto">
+                <i className="ti ti-coins" />
+                <span>Vuelto a dar</span>
+                <strong>{fmt$(totales.vuelto)}</strong>
+              </div>
+            )}
+
+            {/* Diferencia si falta plata */}
+            {carrito.length > 0 && totales.totalPagos > 0 && !totales.pagoCompleto && totales.diferencia < 0 && (
+              <div className="pos-diferencia pos-diferencia--faltan">
+                <i className="ti ti-arrow-down" />
+                {`Faltan ${fmt$(Math.abs(totales.diferencia))}`}
               </div>
             )}
           </div>
@@ -1106,9 +1132,15 @@ export default function Ventas() {
 
       <div className="table-wrap">
         {loadingVentas ? (
-          <div className="table-loading">
-            <i className="ti ti-loader-2" style={{ fontSize: 28, opacity: 0.4 }} /> Cargando ventas...
-          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Fecha / hora</th><th>N°</th><th>Tipo</th><th>Cliente</th>
+                <th>Medios de pago</th><th className="td-right">Total</th><th>Estado</th><th />
+              </tr>
+            </thead>
+            <SkeletonTableBody rows={7} cols={8} />
+          </table>
         ) : ventasFiltradas.length === 0 ? (
           <div className="table-empty">
             <i className="ti ti-shopping-bag" />

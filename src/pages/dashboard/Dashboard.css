@@ -39,7 +39,26 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  position: relative;
+  overflow: hidden;
 }
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 8px 0 0 8px;
+  background: var(--color-border-tertiary);
+  transition: background var(--transition-fast);
+}
+
+.metric-card--danger::before  { background: var(--color-danger);  }
+.metric-card--success::before { background: var(--color-success); }
+.metric-card--warning::before { background: var(--color-warning); }
+.metric-card--info::before    { background: var(--color-info);    }
 
 .metric-label {
   font-size: 11px;

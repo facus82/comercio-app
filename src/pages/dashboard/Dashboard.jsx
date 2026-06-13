@@ -665,6 +665,7 @@ const MetricCard = forwardRef(function MetricCard(
   const isInteractive = !!(to || onClick)
   const cls = [
     'metric-card',
+    colorClass ? `metric-card--${colorClass}` : '',
     isInteractive || nav ? 'metric-card--link' : '',
     active ? 'metric-card--active' : '',
   ].filter(Boolean).join(' ')

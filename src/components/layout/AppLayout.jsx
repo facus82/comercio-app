@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import BottomNav from './BottomNav'
+import { ToastProvider } from '../../hooks/useToast'
 import './AppLayout.css'
 
 export default function AppLayout() {
@@ -22,23 +23,25 @@ export default function AppLayout() {
   if (perfil?.rol === 'superadmin') return <Navigate to="/superadmin" replace />
 
   return (
-    <div className="app-layout">
-      {/* Sidebar — visible en desktop, overlay en mobile */}
-      <Sidebar menuOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+    <ToastProvider>
+      <div className="app-layout">
+        {/* Sidebar — visible en desktop, overlay en mobile */}
+        <Sidebar menuOpen={menuOpen} onClose={() => setMenuOpen(false)} />
 
-      {/* Overlay oscuro al abrir menú en mobile */}
-      {menuOpen && (
-        <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />
-      )}
+        {/* Overlay oscuro al abrir menú en mobile */}
+        {menuOpen && (
+          <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />
+        )}
 
-      <div className="app-body">
-        <Header onMenuToggle={() => setMenuOpen(p => !p)} />
-        <main className="app-content">
-          <Outlet />
-        </main>
-        {/* Barra inferior solo en mobile */}
-        <BottomNav perfil={perfil} onMenuOpen={() => setMenuOpen(true)} />
+        <div className="app-body">
+          <Header onMenuToggle={() => setMenuOpen(p => !p)} />
+          <main className="app-content">
+            <Outlet />
+          </main>
+          {/* Barra inferior solo en mobile */}
+          <BottomNav perfil={perfil} onMenuOpen={() => setMenuOpen(true)} />
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   )
 }
