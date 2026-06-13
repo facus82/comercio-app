@@ -202,12 +202,7 @@
   text-overflow: ellipsis;
 }
 
-/* Columna "venta nueva" */
-.apm-col-nuevo {
-  min-width: 120px;
-}
-
-/* Precio nuevo destacado */
+/* Precio nuevo destacado (cuando NO hay input manual) */
 .apm-precio-nuevo {
   font-weight: 600;
   color: var(--color-accent);
@@ -282,6 +277,86 @@
   gap: 4px;
   font-size: 11px;
   color: var(--color-danger, #EF4444);
+}
+
+/* Columna "venta nueva" más ancha para el input */
+.apm-col-nuevo {
+  min-width: 160px;
+}
+
+/* Toggle redondear — mismo estilo que apm-modo */
+.apm-redondear {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 0.5px solid var(--color-border);
+  background: var(--color-bg-card);
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.apm-redondear input[type="checkbox"] {
+  display: none;
+}
+
+.apm-redondear .ti {
+  font-size: 13px;
+}
+
+.apm-redondear:has(input:checked) {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* Celda de precio editable */
+.apm-precio-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.apm-precio-input {
+  width: 100px;
+  text-align: right;
+  font-weight: 500;
+  font-size: 12px;
+  padding: 3px 7px !important;
+  height: 28px !important;
+}
+
+.apm-precio-input--manual {
+  border-color: var(--color-warning, #F59E0B) !important;
+}
+
+/* Botón para resetear precio manual */
+.apm-reset-manual {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.apm-reset-manual:hover {
+  color: var(--color-text-secondary);
+}
+
+.apm-reset-manual .ti {
+  font-size: 12px;
 }
 
 /* ── Responsive ── */
