@@ -14,7 +14,7 @@ import Caja from '../pages/caja/Caja'
 import Clientes from '../pages/clientes/Clientes'
 import Obligaciones from '../pages/obligaciones/Obligaciones'
 import Config from '../pages/config/Config'
-import ComingSoon from '../components/shared/ComingSoon'
+import Reportes from '../pages/reportes/Reportes'
 import SuperAdmin from '../pages/superadmin/SuperAdmin'
 
 const router = createBrowserRouter([
@@ -50,7 +50,7 @@ const router = createBrowserRouter([
       { path: 'clientes',     element: <Clientes /> },
       { path: 'proveedores',  element: <Proveedores /> },
       { path: 'obligaciones', element: <Obligaciones /> },
-      { path: 'reportes',     element: <ComingSoon titulo="Reportes" /> },
+      { path: 'reportes',     element: <Reportes /> },
       { path: 'config',       element: <Config /> },
     ],
   },

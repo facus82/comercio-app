@@ -30,6 +30,8 @@ export default function Stock() {
   const {
     productos, categorias, subcategorias, proveedores, centrosCostos,
     loading, crear, actualizar, actualizarMasivo, toggleActivo,
+    cargarProveedoresProducto, agregarProveedorProducto,
+    eliminarProveedorProducto, marcarPrincipalProducto,
   } = useProductos(comercioId, perfil?.id)
 
   const [busqueda,          setBusqueda]          = useState('')
@@ -79,6 +81,31 @@ export default function Stock() {
   function abrirNuevo() { setProductoEditar(null); setPanelAbierto(true) }
   function abrirEditar(p) { setProductoEditar(p); setPanelAbierto(true) }
   function cerrar() { setPanelAbierto(false); setProductoEditar(null) }
+  // Después de crear un producto nuevo, quedarse en modo edición para agregar proveedores
+  function handleCreado(nuevoProducto) { setProductoEditar(nuevoProducto) }
+
+  // Cuando el panel está abierto, reemplaza toda la vista (como Ventas)
+  if (panelAbierto) {
+    return (
+      <div className="stock-page" style={{ height: '100%', overflow: 'hidden' }}>
+        <ProductoPanel
+          producto={productoEditar}
+          categorias={categorias}
+          subcategorias={subcategorias}
+          proveedores={proveedores}
+          centrosCostos={centrosCostos}
+          onCrear={crear}
+          onActualizar={actualizar}
+          onCerrar={cerrar}
+          onCreado={handleCreado}
+          cargarProveedoresProducto={cargarProveedoresProducto}
+          agregarProveedorProducto={agregarProveedorProducto}
+          eliminarProveedorProducto={eliminarProveedorProducto}
+          marcarPrincipalProducto={marcarPrincipalProducto}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="stock-page">
@@ -293,6 +320,8 @@ export default function Stock() {
         <ImportarExcel
           productos={productos}
           categorias={categorias}
+          subcategorias={subcategorias}
+          proveedores={proveedores}
           comercioId={comercioId}
           onCrear={crear}
           onActualizar={actualizar}
@@ -333,19 +362,6 @@ export default function Stock() {
         />
       )}
 
-      {/* Panel lateral */}
-      {panelAbierto && (
-        <ProductoPanel
-          producto={productoEditar}
-          categorias={categorias}
-          subcategorias={subcategorias}
-          proveedores={proveedores}
-          centrosCostos={centrosCostos}
-          onCrear={crear}
-          onActualizar={actualizar}
-          onCerrar={cerrar}
-        />
-      )}
     </div>
   )
 }

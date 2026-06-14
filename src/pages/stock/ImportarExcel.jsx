@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
+import { supabase } from '../../lib/supabase'
 import './ImportarExcel.css'
 
 const CAMPOS = [
@@ -7,6 +8,8 @@ const CAMPOS = [
   { id: 'codigo',        label: 'Código interno',   required: false },
   { id: 'codigo_barras', label: 'Código de barras', required: false },
   { id: 'categoria',     label: 'Categoría',        required: false },
+  { id: 'subcategoria',  label: 'Subcategoría',     required: false },
+  { id: 'proveedor',     label: 'Proveedor',        required: false },
   { id: 'precio_costo',  label: 'Precio costo',     required: false },
   { id: 'precio_venta',  label: 'Precio venta',     required: false },
   { id: 'stock_actual',  label: 'Stock actual',     required: false },
@@ -21,6 +24,8 @@ function autoDetectar(headers) {
     codigo:        ['codigo', 'code', 'cod', 'sku', 'ref'],
     codigo_barras: ['barras', 'ean', 'barcode', 'gtin', 'codigo_barras'],
     categoria:     ['categoria', 'category', 'rubro', 'tipo'],
+    subcategoria:  ['subcategoria', 'subcategory', 'subrubro', 'sub'],
+    proveedor:     ['proveedor', 'supplier', 'distribuidor', 'marca'],
     precio_costo:  ['costo', 'precio_costo', 'cost', 'compra', 'precio compra'],
     precio_venta:  ['venta', 'precio_venta', 'precio', 'price', 'precio venta'],
     stock_actual:  ['stock', 'cantidad', 'stock_actual', 'qty', 'existencia'],
@@ -59,10 +64,10 @@ function leerArchivo(file) {
 
 function descargarPlantilla() {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['nombre', 'codigo', 'codigo_barras', 'categoria', 'precio_costo', 'precio_venta', 'stock_actual', 'stock_minimo'],
-    ['Cuaderno A4 rayado', 'CUA-001', '7790001234560', 'Librería', 500, 850, 50, 10],
-    ['Birome azul Bic', 'BIO-001', '7790001234561', 'Papelería', 120, 220, 200, 30],
-    ['Gaseosa Coca 500ml', 'COC-001', '7790001234562', 'Kiosco', 450, 700, 48, 12],
+    ['nombre', 'codigo', 'codigo_barras', 'categoria', 'subcategoria', 'proveedor', 'precio_costo', 'precio_venta', 'stock_actual', 'stock_minimo'],
+    ['Cuaderno A4 rayado', 'CUA-001', '7790001234560', 'Librería', 'Cuadernos', 'Distribuidora Norte', 500, 850, 50, 10],
+    ['Birome azul Bic', 'BIO-001', '7790001234561', 'Papelería', 'Bolígrafos', 'BIC Argentina', 120, 220, 200, 30],
+    ['Gaseosa Coca 500ml', 'COC-001', '7790001234562', 'Kiosco', 'Bebidas', 'Coca-Cola FEMSA', 450, 700, 48, 12],
   ])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Productos')
@@ -70,7 +75,7 @@ function descargarPlantilla() {
 }
 
 export default function ImportarExcel({
-  productos, categorias, comercioId,
+  productos, categorias, subcategorias = [], proveedores = [], comercioId,
   onCrear, onActualizar, onCerrar,
 }) {
   const fileRef = useRef(null)
@@ -111,20 +116,32 @@ export default function ImportarExcel({
         const nombre = val(mapeo.nombre)
         if (!nombre) continue
 
-        const catNombre = val(mapeo.categoria)
-        const cat = catNombre
+        const catNombre  = val(mapeo.categoria)
+        const subNombre  = val(mapeo.subcategoria)
+        const provNombre = val(mapeo.proveedor)
+
+        const cat  = catNombre
           ? categorias.find(c => c.nombre.toLowerCase() === catNombre.toLowerCase())
           : null
+        const sub  = subNombre
+          ? subcategorias.find(s => s.nombre.toLowerCase() === subNombre.toLowerCase())
+          : null
+        const prov = provNombre
+          ? proveedores.find(p => p.razon_social.toLowerCase() === provNombre.toLowerCase())
+          : null
+
+        const precioCosto = parseFloat(val(mapeo.precio_costo)) || 0
 
         const datos = {
           nombre,
-          codigo:        val(mapeo.codigo)        || null,
-          codigo_barras: val(mapeo.codigo_barras) || null,
-          categoria_id:  cat?.id                  || null,
-          precio_costo:  parseFloat(val(mapeo.precio_costo))  || 0,
-          precio_venta:  parseFloat(val(mapeo.precio_venta))  || 0,
-          stock_actual:  parseFloat(val(mapeo.stock_actual))  || 0,
-          stock_minimo:  parseFloat(val(mapeo.stock_minimo))  || 0,
+          codigo:          val(mapeo.codigo)        || null,
+          codigo_barras:   val(mapeo.codigo_barras) || null,
+          categoria_id:    cat?.id                  || null,
+          subcategoria_id: sub?.id                  || null,
+          precio_costo:    precioCosto,
+          precio_venta:    parseFloat(val(mapeo.precio_venta))  || 0,
+          stock_actual:    parseFloat(val(mapeo.stock_actual))  || 0,
+          stock_minimo:    parseFloat(val(mapeo.stock_minimo))  || 0,
           controla_stock: true,
           activo: true,
         }
@@ -135,14 +152,42 @@ export default function ImportarExcel({
           (datos.codigo && p.codigo === datos.codigo)
         )
 
+        let productoId
         if (existente) {
           const res = await onActualizar(existente.id, { ...existente, ...datos }, existente)
           if (res.error) throw new Error(res.error.message)
+          productoId = existente.id
           actualizados++
         } else {
           const res = await onCrear(datos)
           if (res.error) throw new Error(res.error.message)
+          productoId = res.data.id
           creados++
+        }
+
+        // Asociar proveedor en tabla intermedia
+        if (prov && productoId) {
+          const { data: yaExiste } = await supabase
+            .from('producto_proveedores')
+            .select('id, es_principal')
+            .eq('producto_id', productoId)
+            .eq('es_principal', true)
+            .maybeSingle()
+
+          const esPrincipal = !yaExiste
+
+          await supabase.from('producto_proveedores').upsert({
+            comercio_id:  comercioId,
+            producto_id:  productoId,
+            proveedor_id: prov.id,
+            precio_costo: precioCosto || null,
+            es_principal: esPrincipal,
+            activo:       true,
+          }, { onConflict: 'producto_id,proveedor_id' })
+
+          if (esPrincipal) {
+            await supabase.from('productos').update({ proveedor_id: prov.id }).eq('id', productoId)
+          }
         }
       } catch (err) {
         errores.push(String(err.message || err))
@@ -204,7 +249,8 @@ export default function ImportarExcel({
                 <span>
                   Columnas reconocidas automáticamente:&nbsp;
                   <strong>nombre</strong>, <strong>codigo</strong>, <strong>codigo_barras</strong>,&nbsp;
-                  <strong>categoria</strong>, <strong>precio_costo</strong>, <strong>precio_venta</strong>,&nbsp;
+                  <strong>categoria</strong>, <strong>subcategoria</strong>, <strong>proveedor</strong>,&nbsp;
+                  <strong>precio_costo</strong>, <strong>precio_venta</strong>,&nbsp;
                   <strong>stock_actual</strong>, <strong>stock_minimo</strong>
                 </span>
               </div>

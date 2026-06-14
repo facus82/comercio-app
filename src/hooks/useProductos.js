@@ -189,6 +189,63 @@ export function useProductos(comercioId, perfilId) {
     return { error }
   }
 
+  async function cargarProveedoresProducto(productoId) {
+    const { data } = await supabase
+      .from('producto_proveedores')
+      .select('*, proveedor:proveedores(id, razon_social, nombre_fantasia)')
+      .eq('producto_id', productoId)
+      .eq('activo', true)
+      .order('es_principal', { ascending: false })
+    return data || []
+  }
+
+  async function agregarProveedorProducto(productoId, proveedorId, precioCosto) {
+    const existentes = await cargarProveedoresProducto(productoId)
+    const esPrimero  = existentes.length === 0
+
+    const { data, error } = await supabase
+      .from('producto_proveedores')
+      .upsert({
+        comercio_id:  comercioId,
+        producto_id:  productoId,
+        proveedor_id: proveedorId,
+        precio_costo: precioCosto || null,
+        es_principal: esPrimero,
+        activo:       true,
+      }, { onConflict: 'producto_id,proveedor_id' })
+      .select('*, proveedor:proveedores(id, razon_social, nombre_fantasia)')
+      .single()
+
+    if (error) return { error }
+
+    if (esPrimero) {
+      await supabase.from('productos').update({ proveedor_id: proveedorId }).eq('id', productoId)
+      setProductos(prev => prev.map(p => p.id === productoId ? { ...p, proveedor_id: proveedorId } : p))
+    }
+    return { data }
+  }
+
+  async function eliminarProveedorProducto(id, productoId, esPrincipal) {
+    const { error } = await supabase.from('producto_proveedores').delete().eq('id', id)
+    if (error) return { error }
+
+    if (esPrincipal) {
+      await supabase.from('productos').update({ proveedor_id: null }).eq('id', productoId)
+      setProductos(prev => prev.map(p => p.id === productoId ? { ...p, proveedor_id: null } : p))
+    }
+    return {}
+  }
+
+  async function marcarPrincipalProducto(id, productoId, proveedorId) {
+    await supabase.from('producto_proveedores').update({ es_principal: false }).eq('producto_id', productoId)
+    const { error } = await supabase.from('producto_proveedores').update({ es_principal: true }).eq('id', id)
+    if (error) return { error }
+
+    await supabase.from('productos').update({ proveedor_id: proveedorId }).eq('id', productoId)
+    setProductos(prev => prev.map(p => p.id === productoId ? { ...p, proveedor_id: proveedorId } : p))
+    return {}
+  }
+
   return {
     productos,
     categorias,
@@ -201,6 +258,10 @@ export function useProductos(comercioId, perfilId) {
     actualizar,
     actualizarMasivo,
     toggleActivo,
+    cargarProveedoresProducto,
+    agregarProveedorProducto,
+    eliminarProveedorProducto,
+    marcarPrincipalProducto,
     recargar: cargarTodo,
   }
 }
