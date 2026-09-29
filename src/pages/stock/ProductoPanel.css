@@ -54,6 +54,31 @@
   .producto-modal .lotes-section { overflow-x: auto; }
 }
 
+/* Celular (hay barra de navegación inferior): Cancelar/Guardar pegados
+   justo arriba de la barra, a lo ancho, sin hueco en el medio */
+@media (max-width: 768px) {
+  .producto-modal .panel-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 60px;                     /* alto del BottomNav */
+    z-index: 150;
+    padding: 8px 12px;
+    background: var(--color-bg-card);
+    box-shadow: 0 -4px 14px rgba(15, 23, 42, .06);
+  }
+  .producto-modal .panel-footer .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 11px 12px;
+    font-size: 14px;
+  }
+  /* Lugar para que el final de la ficha no quede tapado por los botones */
+  .producto-modal__body { padding-bottom: 64px; }
+  /* El contenido llega hasta la barra: sin el margen inferior extra */
+  .app-content:has(.producto-modal) { padding-bottom: 60px; }
+}
+
 /* Código de barras + botón cámara */
 .prod-codbarras-row {
   display: flex;
