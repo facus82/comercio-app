@@ -1,21 +1,24 @@
+import { lazy } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import AppLayout from '../components/layout/AppLayout'
 import SuperAdminLayout from '../components/layout/SuperAdminLayout'
 import Login from '../pages/auth/Login'
 import SetPassword from '../pages/auth/SetPassword'
 import Dashboard from '../pages/dashboard/Dashboard'
-import Stock from '../pages/stock/Stock'
-import Compras from '../pages/compras/Compras'
-import CompraFormPage from '../pages/compras/CompraFormPage'
-import Proveedores from '../pages/proveedores/Proveedores'
-import Ventas from '../pages/ventas/Ventas'
-import Presupuestos from '../pages/presupuestos/Presupuestos'
-import Caja from '../pages/caja/Caja'
-import Clientes from '../pages/clientes/Clientes'
-import Obligaciones from '../pages/obligaciones/Obligaciones'
-import Config from '../pages/config/Config'
-import Reportes from '../pages/reportes/Reportes'
 import SuperAdmin from '../pages/superadmin/SuperAdmin'
+
+// Páginas cargadas bajo demanda: el bundle inicial sólo trae login, layout y dashboard
+const Stock           = lazy(() => import('../pages/stock/Stock'))
+const Compras         = lazy(() => import('../pages/compras/Compras'))
+const CompraFormPage  = lazy(() => import('../pages/compras/CompraFormPage'))
+const Proveedores     = lazy(() => import('../pages/proveedores/Proveedores'))
+const Ventas          = lazy(() => import('../pages/ventas/Ventas'))
+const Presupuestos    = lazy(() => import('../pages/presupuestos/Presupuestos'))
+const Caja            = lazy(() => import('../pages/caja/Caja'))
+const Clientes        = lazy(() => import('../pages/clientes/Clientes'))
+const Obligaciones    = lazy(() => import('../pages/obligaciones/Obligaciones'))
+const Config          = lazy(() => import('../pages/config/Config'))
+const Reportes        = lazy(() => import('../pages/reportes/Reportes'))
 
 const router = createBrowserRouter([
   {

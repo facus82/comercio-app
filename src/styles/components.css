@@ -560,3 +560,84 @@
   color: var(--cat-color, var(--color-accent));
   white-space: nowrap;
 }
+
+/* ============================================================
+   PULIDO GLOBAL — accesibilidad, números y mobile
+   ============================================================ */
+
+/* Números alineados en columnas (montos, cantidades, totales) */
+.data-table td,
+.td-right,
+.total-row,
+.badge {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Foco visible al navegar con teclado (POS con lector/teclado) */
+.btn:focus-visible,
+.btn-icon:focus-visible,
+.pill:focus-visible,
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Halo suave en inputs con foco */
+.field-input:focus,
+.field-select:focus,
+.field-textarea:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.search-box {
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.search-box:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+/* Feedback táctil al presionar */
+.btn:active:not(:disabled),
+.btn-icon:active,
+.pill:active {
+  transform: scale(0.97);
+}
+.btn, .pill { transition: background var(--transition-fast), border-color var(--transition-fast), transform 80ms ease; }
+
+/* Tablas anchas: scroll horizontal en vez de cortarse */
+.table-wrap { overflow-x: auto; }
+
+/* Entrada suave al cambiar de página (sólo opacidad: un transform
+   rompería los paneles position:fixed durante la animación) */
+.app-content > * {
+  animation: page-in 180ms ease-out;
+}
+@keyframes page-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  /* iOS hace zoom en inputs con fuente < 16px */
+  .field-input,
+  .field-select,
+  .field-textarea,
+  .search-box input,
+  .input-date-filter {
+    font-size: 16px;
+  }
+
+  /* Áreas táctiles más cómodas */
+  .btn-icon { width: 34px; height: 34px; }
+  .btn      { padding: 8px 12px; }
+  .search-box { min-width: 0; flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

@@ -155,3 +155,12 @@
   }
   .toast { min-width: unset; max-width: 100%; }
 }
+
+/* Carga de página bajo demanda */
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+.page-loading .app-loading-spinner { width: 28px; height: 28px; border-width: 2px; }

@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
-import * as XLSX from 'xlsx'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import { cargarDeudas, resumirPorCliente, sumarDias } from '../../hooks/useCuentasCobrar'
 import './Ventas.css'
@@ -33,6 +32,8 @@ const MEDIOS_PAGO = [
   { value: 'mercado_pago',     label: 'Mercado Pago',   icon: 'ti-currency-dollar' },
   { value: 'cuenta_corriente', label: 'Cta. Cte.',      icon: 'ti-notebook'        },
 ]
+
+const RECARGO_INICIAL = { activo: false, tipo: 'monto', valor: '', concepto: '' }  // tipo: monto | pct
 
 const ESTADO_BADGE = { completada: 'badge--success', anulada: 'badge--danger', pendiente: 'badge--warning' }
 
@@ -153,6 +154,7 @@ export default function Ventas() {
   const [pagos,  setPagos]  = useState([{ _key: '1', medio_pago: 'efectivo', monto: '' }])
   const [vtoCC,  setVtoCC]  = useState({ modo: 'defecto', fecha: '' })   // modo: defecto | 7 | 14 | 30 | fecha
   const [deudaCliente, setDeudaCliente] = useState(null)                    // { saldo, vencido, diasAtraso }
+  const [recargo, setRecargo] = useState(RECARGO_INICIAL)
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
@@ -522,16 +524,20 @@ export default function Ventas() {
     const subtotalNeto     = +(totalBruto - iva21 - iva105).toFixed(2)
     const descMonto        = +(totalBruto * descPct / 100).toFixed(2)
     const ahorroPromosMonto = +ahorroPromos.toFixed(2)
-    const total            = +(totalBruto - descMonto - ahorroPromosMonto).toFixed(2)
-    const totalPagos          = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
+    const totalSinRecargo  = +(totalBruto - descMonto - ahorroPromosMonto).toFixed(2)
+    // Recargo: se suma al total de la venta sin tocar el precio de los productos
+    const recargoValor     = recargo.activo ? Number(recargo.valor) || 0 : 0
+    const recargoMonto     = +Math.max(0, recargo.tipo === 'pct' ? totalSinRecargo * recargoValor / 100 : recargoValor).toFixed(2)
+    const total            = +(totalSinRecargo + recargoMonto).toFixed(2)
+    const totalPagos         = +pagos.reduce((s, p) => s + Number(p.monto || 0), 0).toFixed(2)
     const diferencia          = +(totalPagos - total).toFixed(2)
     const hayEfectivoCargado  = pagos.some(p => p.medio_pago === 'efectivo' && Number(p.monto) > 0)
     const sobrepagoEnEfectivo = diferencia > 0.009 && hayEfectivoCargado
     const pagoCompleto        = carrito.length > 0 && total > 0 && (Math.abs(diferencia) < 0.01 || sobrepagoEnEfectivo)
     const vuelto              = sobrepagoEnEfectivo ? diferencia : 0
 
-    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, ahorroPromosMonto, total, totalPagos, diferencia, pagoCompleto, sobrepagoEnEfectivo, vuelto }
-  }, [carrito, pagos, descuentoEfectivoPct, promociones])
+    return { subtotalNeto, iva21: +iva21.toFixed(2), iva105: +iva105.toFixed(2), descPct, descMonto, ahorroPromosMonto, recargoMonto, total, totalPagos, diferencia, pagoCompleto, sobrepagoEnEfectivo, vuelto }
+  }, [carrito, pagos, descuentoEfectivoPct, promociones, recargo])
 
   /* ── CCs en carrito (aviso 2 comprobantes) ── */
   const ccDelCarrito = useMemo(() => {
@@ -554,6 +560,7 @@ export default function Ventas() {
     setBusqCliente(''); setClienteSeleccionado(null); setDropClienteAbierto(false)
     setPagos([{ _key: '1', medio_pago: 'efectivo', monto: '' }])
     setVtoCC({ modo: 'defecto', fecha: '' })
+    setRecargo(RECARGO_INICIAL)
     setError(''); setBusqProd('')
     setNoEncontrado(false); setShowDrop(false)
     setShowItemLibre(false); setLibreDesc(''); setLibrePrice('')
@@ -607,7 +614,10 @@ export default function Ventas() {
         tipo_comprobante: comprobante,
         canal: 'mostrador', estado: 'completada',
         subtotal: totales.subtotalNeto, descuento_monto: +(totales.descMonto + totales.ahorroPromosMonto).toFixed(2),
-        recargo_monto: 0, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
+        recargo_monto: totales.recargoMonto, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
+        ...(totales.recargoMonto > 0 && {
+          notas: `Recargo ${recargo.tipo === 'pct' ? `${Number(recargo.valor)}% ` : ''}${fmt$(totales.recargoMonto)}${recargo.concepto.trim() ? ` — ${recargo.concepto.trim()}` : ''}`,
+        }),
         ...(ccFinal > 0 && { cc_monto: ccFinal, fecha_vencimiento: fechaVtoCC }),
       },
       itemsVenta,
@@ -620,7 +630,8 @@ export default function Ventas() {
   }
 
   /* ── Exportar Excel ── */
-  function exportarExcel() {
+  async function exportarExcel() {
+    const XLSX = await import('xlsx')  // se descarga sólo al usarse
     const COMP = { A: 'Factura A', B: 'Factura B', C: 'Factura C', R: 'Remito' }
 
     const filas = ventasFiltradas.map(v => ({
@@ -811,6 +822,12 @@ export default function Ventas() {
                   <button type="button" className="btn-item-libre-inline" onClick={abrirItemLibre} title="Agregar ítem libre">
                     <i className="ti ti-pencil-plus" /> ítem libre
                   </button>
+                  {!recargo.activo && (
+                    <button type="button" className="btn-item-libre-inline btn-recargo-inline" title="Sumar un recargo al total sin cambiar el precio de los productos"
+                      onClick={() => setRecargo(r => ({ ...r, activo: true, concepto: hayCC ? 'Financiación Cta. Cte.' : '' }))}>
+                      <i className="ti ti-circle-plus" /> recargo
+                    </button>
+                  )}
                 </div>
                 <div className="pos-carrito-list">
                   {carritoAgrupado.map((grupo, gIdx) => (
@@ -895,6 +912,32 @@ export default function Ventas() {
                       ))}
                     </div>
                   ))}
+
+                  {/* Recargo: línea aparte, no es un producto (no toca precios ni stock) */}
+                  {recargo.activo && (
+                    <div className="carrito-item carrito-item--recargo">
+                      <span className="carrito-item-recargo-badge"><i className="ti ti-circle-plus" /> recargo</span>
+                      <div className="carrito-item-info">
+                        <input className="field-input carrito-recargo-concepto" placeholder="Concepto (ej. financiación Cta. Cte.)"
+                          value={recargo.concepto} onChange={e => setRecargo(r => ({ ...r, concepto: e.target.value }))} />
+                      </div>
+                      <div className="carrito-item-controles">
+                        <div className="carrito-recargo-tipo">
+                          {[['monto', '$'], ['pct', '%']].map(([t, l]) => (
+                            <button key={t} type="button" className={`qty-btn${recargo.tipo === t ? ' qty-btn--on' : ''}`}
+                              onClick={() => setRecargo(r => ({ ...r, tipo: t }))}>{l}</button>
+                          ))}
+                        </div>
+                        <input className="field-input carrito-recargo-valor" type="number" min="0"
+                          step={recargo.tipo === 'pct' ? '0.5' : '1'} placeholder={recargo.tipo === 'pct' ? '%' : '$'} autoFocus
+                          value={recargo.valor} onChange={e => setRecargo(r => ({ ...r, valor: e.target.value }))} />
+                        <span className="carrito-item-sub">+{fmt$(totales.recargoMonto)}</span>
+                        <button type="button" className="btn-icon btn-icon--danger" title="Quitar recargo" onClick={() => setRecargo(RECARGO_INICIAL)}>
+                          <i className="ti ti-x" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -1127,6 +1170,12 @@ export default function Ventas() {
               <div className="total-row total-row--desc">
                 <span><i className="ti ti-tag" /> Desc. efectivo {totales.descPct}%</span>
                 <span>−{fmt$(totales.descMonto)}</span>
+              </div>
+            )}
+            {totales.recargoMonto > 0 && (
+              <div className="total-row total-row--recargo">
+                <span><i className="ti ti-circle-plus" /> Recargo{recargo.tipo === 'pct' ? ` ${Number(recargo.valor)}%` : ''}</span>
+                <span>+{fmt$(totales.recargoMonto)}</span>
               </div>
             )}
             <div className="total-row total-row--total">

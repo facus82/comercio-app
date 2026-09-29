@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { Outlet, Navigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import Sidebar from './Sidebar'
@@ -36,7 +36,10 @@ export default function AppLayout() {
         <div className="app-body">
           <Header onMenuToggle={() => setMenuOpen(p => !p)} />
           <main className="app-content">
-            <Outlet />
+            {/* Las páginas se cargan bajo demanda (ver router) */}
+            <Suspense fallback={<div className="page-loading"><div className="app-loading-spinner" /></div>}>
+              <Outlet />
+            </Suspense>
           </main>
           {/* Barra inferior solo en mobile */}
           <BottomNav perfil={perfil} onMenuOpen={() => setMenuOpen(true)} />

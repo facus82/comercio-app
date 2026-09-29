@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../../hooks/useToast'
 import {
-  cargarDeudas, cargarCobros, registrarCobro,
+  cargarVentasCC, cargarCobros, registrarCobro, armarHistorial,
   diasHasta, hoyISO, nombreCliente, linkWhatsApp,
 } from '../../hooks/useCuentasCobrar'
 import './CuentaCliente.css'
@@ -33,9 +33,11 @@ export function VtoBadge({ fecha }) {
 
 export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCambio }) {
   const toast = useToast()
-  const [deudas,  setDeudas]  = useState([])
-  const [cobros,  setCobros]  = useState([])
-  const [loading, setLoading] = useState(true)
+  const [ventasCC, setVentasCC] = useState([])
+  const [cobros,   setCobros]   = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [tab,      setTab]      = useState('pendientes')   // pendientes | historial
+  const [abierta,  setAbierta]  = useState(null)           // venta expandida en historial
 
   const [form,   setForm]   = useState({ monto: '', medio: 'efectivo', fecha: hoyISO(), referencia: '' })
   const [saving, setSaving] = useState(false)
@@ -43,11 +45,11 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
 
   const cargar = useCallback(async () => {
     setLoading(true)
-    const [resD, resC] = await Promise.all([
-      cargarDeudas(comercioId, cliente.id),
+    const [resV, resC] = await Promise.all([
+      cargarVentasCC(comercioId, cliente.id),
       cargarCobros(cliente.id),
     ])
-    setDeudas(resD.data)
+    setVentasCC(resV.data)
     setCobros(resC.data)
     setLoading(false)
   }, [comercioId, cliente.id])
@@ -59,6 +61,13 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
     document.addEventListener('keydown', fn)
     return () => document.removeEventListener('keydown', fn)
   }, [onCerrar])
+
+  const historial = useMemo(() => armarHistorial(ventasCC, cobros), [ventasCC, cobros])
+  const deudas    = useMemo(() => historial
+    .filter(h => h.venta.estado === 'completada' && h.pendiente > 0.009)
+    .map(h => ({ ...h.venta, pendiente: h.pendiente }))
+    .sort((a, b) => (a.fecha_vencimiento || '9999').localeCompare(b.fecha_vencimiento || '9999')),
+  [historial])
 
   const saldo   = deudas.reduce((s, v) => s + v.pendiente, 0)
   const vencido = deudas.filter(v => (diasHasta(v.fecha_vencimiento) ?? 0) < 0).reduce((s, v) => s + v.pendiente, 0)
@@ -124,7 +133,123 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
             )}
           </div>
 
+          {/* Pestañas */}
+          <div className="pills ccli-tabs">
+            <button type="button" className={`pill${tab === 'pendientes' ? ' pill--active' : ''}`} onClick={() => setTab('pendientes')}>
+              <i className="ti ti-clock-dollar" /> Pendientes{deudas.length > 0 ? ` (${deudas.length})` : ''}
+            </button>
+            <button type="button" className={`pill${tab === 'historial' ? ' pill--active' : ''}`} onClick={() => setTab('historial')}>
+              <i className="ti ti-history" /> Historial{historial.length > 0 ? ` (${historial.length})` : ''}
+            </button>
+          </div>
+
+          {tab === 'historial' && (
+            <div className="ccli-hist">
+              {loading ? (
+                <p className="ccli-empty">Cargando...</p>
+              ) : historial.length === 0 ? (
+                <p className="ccli-empty"><i className="ti ti-notebook-off" /> Todavía no tiene ventas a Cta. Cte.</p>
+              ) : historial.map(({ venta: v, pendiente, movimientos, canceladaEl }) => {
+                const open = abierta === v.id
+                const estado = v.estado === 'anulada'
+                  ? <span className="badge badge--neutral">Anulada</span>
+                  : canceladaEl
+                    ? <span className="badge badge--success"><i className="ti ti-check" /> Cancelada {fmtFecha(canceladaEl)}</span>
+                    : <VtoBadge fecha={v.fecha_vencimiento} />
+                return (
+                  <div key={v.id} className={`ccli-hist-card${open ? ' ccli-hist-card--open' : ''}${v.estado === 'anulada' ? ' ccli-hist-card--anulada' : ''}`}>
+                    <button type="button" className="ccli-hist-head" onClick={() => setAbierta(open ? null : v.id)}>
+                      <div className="ccli-hist-info">
+                        <span className="ccli-hist-titulo"><span className="td-mono">{v.numero}</span> · {fmtFecha(v.fecha)}</span>
+                        {estado}
+                      </div>
+                      <div className="ccli-hist-montos">
+                        <span className="ccli-hist-monto">{fmt$(v.cc_monto)}</span>
+                        {pendiente > 0.009 && v.estado === 'completada' && (
+                          <span className="ccli-hist-resta">resta {fmt$(pendiente)}</span>
+                        )}
+                      </div>
+                      <i className={`ti ti-chevron-${open ? 'up' : 'down'} ccli-hist-chev`} />
+                    </button>
+
+                    {open && (
+                      <ol className="ccli-timeline">
+                        {/* Origen de la deuda */}
+                        <li className="ccli-tl ccli-tl--origen">
+                          <span className="ccli-tl-dot"><i className="ti ti-shopping-cart" /></span>
+                          <div className="ccli-tl-body">
+                            <div className="ccli-tl-row">
+                              <span><strong>Venta {v.numero}</strong> · {fmtFecha(v.fecha)}</span>
+                              <span className="ccli-tl-monto ccli-tl-monto--cargo">+{fmt$(v.cc_monto)}</span>
+                            </div>
+                            {(v.items || []).length > 0 && (
+                              <ul className="ccli-tl-items">
+                                {v.items.map((it, i) => (
+                                  <li key={i}>
+                                    <span>{Number(it.cantidad)} × {it.descripcion}</span>
+                                    <span>{fmt$(it.subtotal)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {Number(v.recargo_monto) > 0 && (
+                              <p className="ccli-tl-nota"><i className="ti ti-circle-plus" /> {v.notas || `Recargo ${fmt$(v.recargo_monto)}`}</p>
+                            )}
+                            {Number(v.cc_monto) < Number(v.total) - 0.009 && (
+                              <p className="ccli-tl-nota">Total venta {fmt$(v.total)} · {fmt$(Number(v.total) - Number(v.cc_monto))} pagado en el momento</p>
+                            )}
+                            {v.fecha_vencimiento && <p className="ccli-tl-nota">Vencimiento pactado: {fmtFecha(v.fecha_vencimiento)}</p>}
+                          </div>
+                        </li>
+
+                        {/* Pagos aplicados */}
+                        {movimientos.map((m, i) => (
+                          <li key={m.cobroId + i} className="ccli-tl ccli-tl--pago">
+                            <span className="ccli-tl-dot"><i className="ti ti-arrow-down-left" /></span>
+                            <div className="ccli-tl-body">
+                              <div className="ccli-tl-row">
+                                <span>Pago · {fmtFecha(m.fecha)} · {MEDIO_LABEL[m.medio] || m.medio}</span>
+                                <span className="ccli-tl-monto ccli-tl-monto--pago">−{fmt$(m.monto)}</span>
+                              </div>
+                              <p className="ccli-tl-nota">
+                                {m.referencia ? `Ref. ${m.referencia} · ` : ''}Saldo {fmt$(Math.max(0, m.saldo))}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+
+                        {/* Cierre */}
+                        {v.estado === 'anulada' ? (
+                          <li className="ccli-tl ccli-tl--fin">
+                            <span className="ccli-tl-dot"><i className="ti ti-ban" /></span>
+                            <div className="ccli-tl-body"><span>Venta anulada</span></div>
+                          </li>
+                        ) : canceladaEl ? (
+                          <li className="ccli-tl ccli-tl--ok">
+                            <span className="ccli-tl-dot"><i className="ti ti-check" /></span>
+                            <div className="ccli-tl-body"><span><strong>Cancelada</strong> el {fmtFecha(canceladaEl)}</span></div>
+                          </li>
+                        ) : (
+                          <li className="ccli-tl ccli-tl--pend">
+                            <span className="ccli-tl-dot"><i className="ti ti-hourglass" /></span>
+                            <div className="ccli-tl-body">
+                              <div className="ccli-tl-row">
+                                <span>Saldo pendiente</span>
+                                <span className="ccli-tl-monto">{fmt$(pendiente)}</span>
+                              </div>
+                            </div>
+                          </li>
+                        )}
+                      </ol>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Deudas pendientes */}
+          {tab === 'pendientes' && (<>
           <div className="form-section">
             <p className="form-section-title">Ventas pendientes</p>
             {loading ? (
@@ -209,12 +334,12 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
             </form>
           )}
 
-          {/* Historial de cobros */}
+          {/* Últimos cobros (el detalle completo está en Historial) */}
           {cobros.length > 0 && (
             <div className="form-section">
-              <p className="form-section-title">Cobros registrados</p>
+              <p className="form-section-title">Últimos cobros</p>
               <div className="ccli-cobros">
-                {cobros.map(c => (
+                {cobros.slice(0, 5).map(c => (
                   <div key={c.id} className="ccli-cobro">
                     <i className="ti ti-arrow-down-left ccli-cobro-icon" />
                     <div className="ccli-cobro-info">
@@ -227,11 +352,12 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
               </div>
             </div>
           )}
+          </>)}
         </div>
 
         <div className="panel-footer">
           <button type="button" className="btn" onClick={onCerrar}><i className="ti ti-x" /> Cerrar</button>
-          {saldo > 0 && (
+          {saldo > 0 && tab === 'pendientes' && (
             <button type="submit" form="ccli-cobro-form" className="btn btn--primary" disabled={saving || montoNum <= 0}>
               <i className={`ti ${saving ? 'ti-loader-2' : 'ti-check'}`} />
               {saving ? 'Registrando...' : montoNum > 0 ? `Cobrar ${fmt$(montoNum)}` : 'Cobrar'}

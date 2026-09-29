@@ -1200,3 +1200,54 @@
   font-weight: 500;
   color: var(--color-text-primary);
 }
+
+/* ── Recargo (línea del carrito, no es producto) ── */
+.btn-recargo-inline { margin-left: 4px; }
+.btn-recargo-inline:hover {
+  border-color: var(--color-warning-600);
+  color: var(--color-warning-600);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+
+.carrito-item--recargo {
+  background: color-mix(in srgb, var(--color-warning) 6%, transparent);
+  border: 0.5px dashed color-mix(in srgb, var(--color-warning) 45%, transparent);
+  border-radius: 6px;
+  padding-left: 6px;
+  margin-top: 6px;
+}
+
+.carrito-item-recargo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning-600);
+  white-space: nowrap;
+}
+
+.carrito-recargo-concepto { max-width: 280px; }
+
+.carrito-recargo-tipo {
+  display: flex;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.qty-btn--on {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-600);
+  font-weight: 600;
+}
+
+.carrito-recargo-valor { width: 84px; text-align: right; }
+
+.carrito-item--recargo .carrito-item-sub { color: var(--color-warning-600); min-width: 80px; text-align: right; }
+
+.total-row--recargo { color: var(--color-warning-600); }
+.total-row--recargo .ti { font-size: 12px; }

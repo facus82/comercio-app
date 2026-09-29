@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'
-import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import './ImportarExcel.css'
 
@@ -45,8 +44,9 @@ function autoDetectar(headers) {
 function leerArchivo(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = e => {
+    reader.onload = async e => {
       try {
+        const XLSX = await import('xlsx')  // se descarga sólo al usarse
         const wb = XLSX.read(e.target.result, { type: 'array' })
         const ws = wb.Sheets[wb.SheetNames[0]]
         const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
@@ -62,7 +62,8 @@ function leerArchivo(file) {
   })
 }
 
-function descargarPlantilla() {
+async function descargarPlantilla() {
+  const XLSX = await import('xlsx')  // se descarga sólo al usarse
   const ws = XLSX.utils.aoa_to_sheet([
     ['nombre', 'codigo', 'codigo_barras', 'categoria', 'subcategoria', 'proveedor', 'precio_costo', 'precio_venta', 'stock_actual', 'stock_minimo'],
     ['Cuaderno A4 rayado', 'CUA-001', '7790001234560', 'Librería', 'Cuadernos', 'Distribuidora Norte', 500, 850, 50, 10],

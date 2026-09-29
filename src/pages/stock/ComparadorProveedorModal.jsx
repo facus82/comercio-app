@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import * as XLSX from 'xlsx'
 import './ComparadorProveedorModal.css'
 
 const fmt$ = v =>
@@ -138,8 +137,9 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
     if (!file) return
     setErrUpload('')
     const reader = new FileReader()
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
+        const XLSX = await import('xlsx')  // se descarga sólo al usarse
         const wb   = XLSX.read(ev.target.result, { type: 'array' })
         const ws   = wb.Sheets[wb.SheetNames[0]]
         const data = XLSX.utils.sheet_to_json(ws, { defval: '' })
@@ -258,7 +258,8 @@ export default function ComparadorProveedorModal({ productos, proveedores = [], 
   }
 
   /* ── Exportar ── */
-  function exportar() {
+  async function exportar() {
+    const XLSX = await import('xlsx')  // se descarga sólo al usarse
     const rows = informe.map(r => {
       const row = {
         'Producto catálogo':     r.producto?.nombre || '— sin coincidencia —',

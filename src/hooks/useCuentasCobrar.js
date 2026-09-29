@@ -82,8 +82,48 @@ export async function cargarCobros(clienteId) {
     .select('*')
     .eq('cliente_id', clienteId)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(500)
   return { data: data || [], error }
+}
+
+/* Todas las ventas a Cta. Cte. del cliente (pendientes, canceladas y anuladas) con sus ítems */
+export async function cargarVentasCC(comercioId, clienteId) {
+  const { data, error } = await supabase
+    .from('ventas')
+    .select('id, numero, fecha, estado, total, recargo_monto, notas, cc_monto, cc_pagado, fecha_vencimiento, items:venta_items(descripcion, cantidad, subtotal)')
+    .eq('comercio_id', comercioId)
+    .eq('cliente_id', clienteId)
+    .gt('cc_monto', 0)
+    .order('fecha', { ascending: false })
+    .limit(200)
+  return { data: data || [], error }
+}
+
+/* Historia de cada deuda: nace en la venta y se le aplican los cobros hasta cancelarla.
+   Devuelve [{ venta, movimientos: [{ fecha, medio, monto, referencia, saldo }], canceladaEl }] */
+export function armarHistorial(ventasCC, cobros) {
+  const porVenta = {}
+  ;[...cobros]
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .forEach(c => (c.imputaciones || []).forEach(imp => {
+      (porVenta[imp.venta_id] ||= []).push({
+        cobroId: c.id, fecha: c.fecha, medio: c.medio_pago,
+        referencia: c.referencia, monto: Number(imp.monto),
+      })
+    }))
+
+  return ventasCC.map(v => {
+    let saldo = Number(v.cc_monto)
+    const movimientos = (porVenta[v.id] || []).map(m => {
+      saldo = +(saldo - m.monto).toFixed(2)
+      return { ...m, saldo }
+    })
+    const pendiente   = +(Number(v.cc_monto) - Number(v.cc_pagado)).toFixed(2)
+    const canceladaEl = v.estado === 'completada' && pendiente <= 0.009 && movimientos.length
+      ? movimientos[movimientos.length - 1].fecha
+      : null
+    return { venta: v, pendiente, movimientos, canceladaEl }
+  })
 }
 
 export async function registrarCobro({ clienteId, monto, medioPago, fecha, referencia, notas }) {

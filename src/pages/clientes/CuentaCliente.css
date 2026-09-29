@@ -133,3 +133,151 @@
   .ccli-resumen { flex-wrap: wrap; }
   .ccli-wa { width: 100%; justify-content: center; }
 }
+
+/* ── Pestañas ── */
+.ccli-tabs { gap: 6px; }
+
+/* ── Historial por venta (timeline) ── */
+.ccli-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ccli-hist-card {
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-card);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.ccli-hist-card--open { border-color: var(--color-accent); }
+.ccli-hist-card--anulada { opacity: .6; }
+
+.ccli-hist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+}
+
+.ccli-hist-head:hover { background: var(--color-bg-app); }
+
+.ccli-hist-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.ccli-hist-titulo { font-size: 12px; }
+
+.ccli-hist-montos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ccli-hist-monto { font-size: 13px; font-weight: 600; }
+.ccli-hist-resta { font-size: 10px; color: var(--color-danger-600); font-weight: 500; }
+.ccli-hist-chev  { font-size: 14px; color: var(--color-text-tertiary); }
+
+.ccli-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 4px 12px 12px;
+  border-top: 0.5px solid var(--color-border);
+}
+
+.ccli-tl {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+/* línea vertical entre puntos */
+.ccli-tl:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 34px;
+  bottom: -10px;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.ccli-tl-dot {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  background: var(--color-bg-app);
+  color: var(--color-text-secondary);
+  border: 0.5px solid var(--color-border);
+}
+
+.ccli-tl--origen .ccli-tl-dot { background: var(--color-info-bg);    color: var(--color-info);        border-color: transparent; }
+.ccli-tl--pago   .ccli-tl-dot { background: var(--color-success-bg); color: var(--color-success-600); border-color: transparent; }
+.ccli-tl--ok     .ccli-tl-dot { background: var(--color-success);    color: #fff;                     border-color: transparent; }
+.ccli-tl--pend   .ccli-tl-dot { background: var(--color-warning-bg); color: var(--color-warning-600); border-color: transparent; }
+
+.ccli-tl-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding-top: 3px;
+}
+
+.ccli-tl-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ccli-tl-monto { font-weight: 600; white-space: nowrap; }
+.ccli-tl-monto--cargo { color: var(--color-text-primary); }
+.ccli-tl-monto--pago  { color: var(--color-success-600); }
+
+.ccli-tl-nota {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.ccli-tl-items {
+  list-style: none;
+  margin: 6px 0 2px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--color-bg-app);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ccli-tl-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
