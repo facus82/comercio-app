@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../hooks/useAuth'
+import { borrarImagenProducto } from '../../lib/imagenes'
+import { ImagenProductoField } from '../../components/shared/ImagenProducto'
 import './ProductoPanel.css'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'caja', 'pack', 'docena']
@@ -38,6 +41,7 @@ const DEFAULTS = {
   iva_porcentaje: 21,
   stock_actual: 0, stock_minimo: 0, stock_maximo: '',
   controla_stock: true, controla_lotes: false, es_servicio: false, activo: true,
+  imagen_url: '',
 }
 
 function toForm(p) {
@@ -63,6 +67,7 @@ function toForm(p) {
     controla_lotes:  p.controla_lotes  ?? false,
     es_servicio:     p.es_servicio     ?? false,
     activo:          p.activo          ?? true,
+    imagen_url:      p.imagen_url      ?? '',
   }
 }
 
@@ -201,6 +206,8 @@ export default function ProductoPanel({
   cargarProveedoresProducto, agregarProveedorProducto,
   eliminarProveedorProducto, marcarPrincipalProducto,
 }) {
+  const { perfil } = useAuth()
+  const comercioId = perfil?.comercio?.id
   const [form, setForm]   = useState(() => toForm(producto))
   const [calc, setCalc]   = useState(() => initCalc(producto))
   const [precioManual, setPrecioManual] = useState(!!producto) // al editar, precio es manual
@@ -479,6 +486,7 @@ export default function ProductoPanel({
       controla_lotes:  form.controla_lotes,
       es_servicio:     form.es_servicio,
       activo:          form.activo,
+      imagen_url:      form.imagen_url || null,
     }
 
     const res = producto
@@ -486,6 +494,10 @@ export default function ProductoPanel({
       : await onCrear(datos)
 
     setSaving(false)
+    // La foto anterior se borra recién cuando el cambio quedó guardado
+    if (!res.error && producto?.imagen_url && producto.imagen_url !== datos.imagen_url) {
+      borrarImagenProducto(producto.imagen_url)
+    }
     if (res.error) {
       setError(res.error.message || 'Error al guardar.')
     } else if (!producto && res.data) {
@@ -549,6 +561,14 @@ export default function ProductoPanel({
                   <label className="field-label">Descripción</label>
                   <textarea className="field-textarea" rows={2} placeholder="Opcional..."
                     value={form.descripcion} onChange={e => setF('descripcion', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Imagen</label>
+                  <ImagenProductoField
+                    comercioId={comercioId}
+                    value={form.imagen_url}
+                    onChange={url => setF('imagen_url', url)}
+                  />
                 </div>
               </div>
 

@@ -8,6 +8,7 @@ import ActualizarPreciosModal from './ActualizarPreciosModal'
 import PromocionesModal from './PromocionesModal'
 import ComparadorProveedorModal from './ComparadorProveedorModal'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
+import { ProductoThumb } from '../../components/shared/ImagenProducto'
 import './Stock.css'
 
 const fmt$ = v =>
@@ -250,10 +251,13 @@ export default function Stock() {
                       {p.codigo_barras || p.codigo || '—'}
                     </td>
                     <td className="stock-nombre">
-                      {p.nombre}
-                      {p.es_servicio && (
-                        <span className="badge badge--info" style={{ marginLeft: 6 }}>Servicio</span>
-                      )}
+                      <span className="stock-nombre-wrap">
+                        <ProductoThumb url={p.imagen_url} size={28} alt={p.nombre} />
+                        <span className="stock-nombre-txt">{p.nombre}</span>
+                        {p.es_servicio && (
+                          <span className="badge badge--info">Servicio</span>
+                        )}
+                      </span>
                     </td>
                     <td>
                       {p.categoria ? (

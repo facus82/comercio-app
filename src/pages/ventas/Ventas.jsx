@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import { cargarDeudas, resumirPorCliente, sumarDias } from '../../hooks/useCuentasCobrar'
 import ClientePanel from '../clientes/ClientePanel'
+import { ProductoThumb } from '../../components/shared/ImagenProducto'
 import './Ventas.css'
 
 const fmt$ = v =>
@@ -200,7 +201,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     const [resProds, resClis, resPromos] = await Promise.all([
       supabase
         .from('productos')
-        .select('id, nombre, codigo_barras, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
+        .select('id, nombre, codigo_barras, imagen_url, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -826,6 +827,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                       className={`pos-dd-item${sinStock ? ' pos-dd-item--agotado' : ''}`}
                       onMouseDown={() => agregarAlCarrito(prod)}
                     >
+                      <ProductoThumb url={prod.imagen_url} size={44} alt={prod.nombre} />
                       <div className="pos-dd-main">
                         <span className="pos-dd-nombre">{prod.nombre}</span>
                         <div className="pos-dd-meta">
@@ -959,6 +961,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                                   {it.producto.centro_costo.nombre}
                                 </span>
                               )}
+                              {it.producto.imagen_url && <ProductoThumb url={it.producto.imagen_url} size={30} alt={it.producto.nombre} />}
                               <div className="carrito-item-info">
                                 <span className="carrito-item-nombre">{it.producto.nombre}</span>
                                 {it.esPromo && <span className="badge-promo">PROMO</span>}

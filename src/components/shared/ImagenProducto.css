@@ -1,0 +1,75 @@
+/* ── Miniatura de producto ── */
+.prod-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--color-bg-app);
+  border: 0.5px solid var(--color-border);
+}
+
+.prod-thumb--vacia {
+  color: var(--color-text-tertiary);
+  opacity: .7;
+}
+
+/* ── Campo de imagen en la ficha ── */
+.img-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.img-field-preview {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-card);
+  border: 0.5px solid var(--color-border);
+}
+
+.img-field-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.img-field-preview--vacia {
+  border-style: dashed;
+  border-color: var(--color-border-input);
+  color: var(--color-text-tertiary);
+  font-size: 26px;
+}
+
+.img-field-spin {
+  font-size: 22px;
+  color: var(--color-accent);
+  animation: spin .8s linear infinite;
+}
+
+.img-field-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.img-field-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* "Sacar foto" sólo tiene sentido en pantallas táctiles */
+.img-field-solo-movil { display: none; }
+
+@media (pointer: coarse) {
+  .img-field-solo-movil { display: inline-flex; }
+}
