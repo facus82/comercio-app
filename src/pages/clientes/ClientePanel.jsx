@@ -33,12 +33,15 @@ function toForm(c) {
   }
 }
 
-export default function ClientePanel({ cliente, onCrear, onActualizar, onCerrar }) {
-  const [form,   setForm]   = useState(() => toForm(cliente))
+// inicial: datos precargados al crear (ej. lo que se tipeó en el buscador del POS)
+export default function ClientePanel({ cliente, inicial, onCrear, onActualizar, onCerrar }) {
+  const armarForm = () => cliente ? toForm(cliente) : { ...DEFAULTS, ...inicial }
+  const [form,   setForm]   = useState(armarForm)
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
-  useEffect(() => { setForm(toForm(cliente)); setError('') }, [cliente])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setForm(armarForm()); setError('') }, [cliente])
 
   useEffect(() => {
     const fn = e => { if (e.key === 'Escape') onCerrar() }

@@ -6,6 +6,7 @@ import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import { cargarDeudas, resumirPorCliente, sumarDias } from '../../hooks/useCuentasCobrar'
+import ClientePanel from '../clientes/ClientePanel'
 import './Ventas.css'
 
 const fmt$ = v =>
@@ -205,7 +206,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
         .order('nombre'),
       supabase
         .from('clientes')
-        .select('id, nombre, apellido, razon_social, cuit, telefono, plazo_dias, limite_credito')
+        .select('id, nombre, apellido, razon_social, cuit, dni, telefono, plazo_dias, limite_credito')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -342,11 +343,45 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     if (!q) return clientes.slice(0, 8)   // muestra los primeros 8 al abrir
     return clientes
       .filter(c =>
-        `${c.nombre} ${c.apellido || ''}`.toLowerCase().includes(q) ||
-        (c.cuit || '').includes(q)
+        `${c.nombre} ${c.apellido || ''} ${c.razon_social || ''}`.toLowerCase().includes(q) ||
+        (c.cuit || '').includes(q) ||
+        (c.dni || '').includes(q)
       )
       .slice(0, 8)
   }, [clientes, busqCliente])
+
+  /* ── Alta rápida de cliente desde el POS ── */
+  const [nuevoCliente, setNuevoCliente] = useState(null)   // datos iniciales de la ficha, o null
+
+  function abrirNuevoCliente() {
+    // Precarga lo tipeado: números → DNI/CUIT, texto → nombre y apellido
+    const q = busqCliente.trim()
+    const digitos = q.replace(/\D/g, '')
+    let inicial = {}
+    if (q && digitos.length >= 7 && digitos.length === q.replace(/[\s.-]/g, '').length) {
+      inicial = digitos.length === 11 ? { cuit: q } : { dni: digitos }
+    } else if (q) {
+      const [nombre, ...resto] = q.split(/\s+/)
+      inicial = { nombre, apellido: resto.join(' ') }
+    }
+    if (hayCC) inicial.tipo = 'cuenta_corriente'
+    setDropClienteAbierto(false)
+    setNuevoCliente(inicial)
+  }
+
+  async function crearClienteDesdePos(datos) {
+    const { data, error } = await supabase
+      .from('clientes')
+      .insert({ ...datos, comercio_id: comercioId })
+      .select('id, nombre, apellido, razon_social, cuit, dni, telefono, plazo_dias, limite_credito')
+      .single()
+    if (error?.code === '23505') return { error: { message: 'Ya existe un cliente con ese DNI o CUIT. Buscalo en el listado.' } }
+    if (error) return { error }
+    setClientes(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+    seleccionarCliente(data)
+    toast?.success(`Cliente ${data.nombre}${data.apellido ? ` ${data.apellido}` : ''} creado`)
+    return { data }
+  }
 
   function onBusqClienteChange(q) {
     setBusqCliente(q)
@@ -1054,7 +1089,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                       onBlur={() => setTimeout(() => setDropClienteAbierto(false), 150)}
                       autoComplete="off"
                     />
-                    {dropClienteAbierto && clientesFiltrados.length > 0 && (
+                    {dropClienteAbierto && (
                       <div className="prod-dropdown">
                         {clientesFiltrados.map(c => (
                           <button
@@ -1064,11 +1099,21 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                             onMouseDown={() => seleccionarCliente(c)}
                           >
                             <span className="prod-dd-nombre">
-                              {c.nombre} {c.apellido || ''}
+                              {c.razon_social || `${c.nombre} ${c.apellido || ''}`}
                             </span>
-                            <span className="prod-dd-precio">{c.cuit || ''}</span>
+                            <span className="prod-dd-precio">{c.cuit || c.dni || ''}</span>
                           </button>
                         ))}
+                        {busqCliente.trim() && clientesFiltrados.length === 0 && (
+                          <p className="cliente-dd-vacio">No hay clientes con “{busqCliente.trim()}”</p>
+                        )}
+                        {/* Alta rápida: siempre disponible al final */}
+                        <button type="button" className="prod-dropdown-item cliente-dd-nuevo" onMouseDown={abrirNuevoCliente}>
+                          <span className="prod-dd-nombre">
+                            <i className="ti ti-user-plus" />
+                            {busqCliente.trim() ? `Crear cliente “${busqCliente.trim()}”` : 'Nuevo cliente'}
+                          </span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1266,6 +1311,16 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
           </button>
 
         </div>
+
+        {/* Alta rápida de cliente (misma ficha que el módulo Clientes) */}
+        {nuevoCliente && (
+          <ClientePanel
+            cliente={null}
+            inicial={nuevoCliente}
+            onCrear={crearClienteDesdePos}
+            onCerrar={() => setNuevoCliente(null)}
+          />
+        )}
 
         {/* Barra inferior en celular: total + ir al cobro */}
         {carrito.length > 0 && (

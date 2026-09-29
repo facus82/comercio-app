@@ -1332,3 +1332,26 @@
   /* En modo caja el contenido scrollea dentro del main */
   .posc-main { overflow-y: auto; }
 }
+
+/* ── Alta rápida de cliente en el POS ── */
+.cliente-dd-vacio {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.cliente-dd-nuevo {
+  border-top: 0.5px solid var(--color-border);
+  color: var(--color-accent);
+}
+
+.cliente-dd-nuevo .prod-dd-nombre {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.cliente-dd-nuevo:hover { background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-card)); }
