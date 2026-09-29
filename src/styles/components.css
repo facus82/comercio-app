@@ -641,3 +641,18 @@ button:focus-visible {
     transition-duration: 1ms !important;
   }
 }
+
+/* Teclas de atajo */
+kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 1px 5px;
+  border: 0.5px solid var(--color-border-input);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-app);
+}

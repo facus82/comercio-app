@@ -50,9 +50,6 @@ function PosCajaContenido({ perfil }) {
   useWakeLock()
 
   const [caja,        setCaja]        = useState(undefined)   // undefined = cargando, null = cerrada
-  const [saldoAp,     setSaldoAp]     = useState('')
-  const [abriendo,    setAbriendo]    = useState(false)
-  const [errorAp,     setErrorAp]     = useState('')
   const [stats,       setStats]       = useState({ cant: 0, total: 0 })
   const [fullscreen,  setFullscreen]  = useState(false)
   const [verAtajos,   setVerAtajos]   = useState(false)
@@ -100,47 +97,14 @@ function PosCajaContenido({ perfil }) {
     navigate(destino)
   }
 
-  async function abrirCaja(e) {
-    e.preventDefault()
-    setAbriendo(true); setErrorAp('')
-    const { data, error } = await supabase.from('cierres_caja')
-      .insert({ comercio_id: comercioId, usuario_id: perfil.id, saldo_apertura: Number(saldoAp) || 0, estado: 'abierta' })
-      .select()
-      .single()
-    setAbriendo(false)
-    if (error) setErrorAp(error.message || 'No se pudo abrir la caja.')
-    else setCaja(data)
-  }
-
   /* ── Cargando ── */
   if (caja === undefined) {
     return <div className="app-loading"><div className="app-loading-spinner" /></div>
   }
 
-  /* ── Caja cerrada: pedir apertura ── */
+  /* ── Caja cerrada: se abre en el módulo Caja (arqueo + referencia del último cierre) y vuelve ── */
   if (caja === null) {
-    return (
-      <div className="posc-apertura">
-        <form className="posc-apertura-card" onSubmit={abrirCaja}>
-          <div className="posc-apertura-icon"><i className="ti ti-cash-register" /></div>
-          <h1>Abrir caja</h1>
-          <p>Para usar el modo caja primero abrí la caja del día con el efectivo inicial.</p>
-          {errorAp && <div className="error-banner"><i className="ti ti-alert-circle" /> {errorAp}</div>}
-          <div className="field">
-            <label className="field-label">Efectivo inicial $</label>
-            <input className="field-input posc-apertura-input" type="number" min="0" step="1" inputMode="decimal"
-              placeholder="0" autoFocus value={saldoAp} onChange={e => setSaldoAp(e.target.value)} />
-          </div>
-          <button type="submit" className="btn btn--filled posc-apertura-btn" disabled={abriendo || saldoAp === ''}>
-            <i className={`ti ${abriendo ? 'ti-loader-2' : 'ti-lock-open'}`} />
-            {abriendo ? 'Abriendo...' : 'Abrir caja y empezar'}
-          </button>
-          <button type="button" className="btn posc-apertura-salir" onClick={() => salir('/ventas')}>
-            <i className="ti ti-arrow-left" /> Volver a la app
-          </button>
-        </form>
-      </div>
-    )
+    return <Navigate to="/caja?volver=pos" replace />
   }
 
   /* ── Modo caja ── */

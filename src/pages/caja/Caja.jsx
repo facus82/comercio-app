@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useCaja } from '../../hooks/useCaja'
 import { useCajaMetricas } from '../../hooks/useCajaMetricas'
@@ -36,6 +37,11 @@ export default function Caja() {
   const comercioId  = perfil?.comercio?.id
   const esPropietario = perfil?.rol === 'propietario'
 
+  // ?volver=pos → viene del modo caja: al abrir la caja vuelve al POS
+  const navigate      = useNavigate()
+  const [searchParams] = useSearchParams()
+  const volverAPos    = searchParams.get('volver') === 'pos'
+
   const { cajaActual, historial, movimientos, loading, abrir, cerrar, registrarMovimiento, recargar } = useCaja(comercioId, perfil?.id)
   const { metricas, centrosCostos, pagosEfectivo, loadingMetricas } = useCajaMetricas(
     comercioId,
@@ -64,6 +70,7 @@ export default function Caja() {
     const res = await abrir(saldoApertura)
     setAbriendo(false)
     if (res.error) setError(res.error.message || 'Error al abrir caja.')
+    else if (volverAPos) navigate('/pos', { replace: true })
     else setSaldoApertura('')
   }
 
@@ -156,6 +163,12 @@ export default function Caja() {
         /* ── CAJA CERRADA ─────────────────────────────── */
         <div className="caja-cols">
           <div className="caja-col-main">
+            {volverAPos && (
+              <div className="caja-aviso-pos">
+                <i className="ti ti-device-desktop" />
+                <span>Abrí la caja para empezar a vender. Al confirmar vas directo al <strong>modo caja</strong>.</span>
+              </div>
+            )}
             {error && (
               <div className="error-banner" style={{ marginBottom: 16 }}>
                 <i className="ti ti-alert-circle" /> {error}
@@ -223,7 +236,7 @@ export default function Caja() {
                   style={{ alignSelf: 'flex-start' }}
                 >
                   <i className={`ti ${abriendo ? 'ti-loader-2' : 'ti-lock-open'}`} />
-                  {abriendo ? 'Abriendo...' : 'Abrir caja'}
+                  {abriendo ? 'Abriendo...' : volverAPos ? 'Abrir caja e ir al modo caja' : 'Abrir caja'}
                 </button>
               </form>
             </div>

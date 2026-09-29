@@ -797,3 +797,18 @@
 
   .caja-arqueo-actions { display: none !important; }
 }
+
+/* Aviso: se viene del modo caja */
+.caja-aviso-pos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-card));
+  border: 0.5px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-text-primary);
+}
+.caja-aviso-pos .ti { font-size: 16px; color: var(--color-accent); }
