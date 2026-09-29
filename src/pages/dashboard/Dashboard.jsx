@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, forwardRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
+import { cargarDeudas, resumirPorCliente, linkWhatsApp } from '../../hooks/useCuentasCobrar'
 import PagoCompraModal from './PagoCompraModal'
+import CuentaClientePanel from '../clientes/CuentaClientePanel'
 import './Dashboard.css'
 
 /* ── Medios de pago ──────────────────────── */
@@ -53,6 +55,7 @@ function useDashboard(comercioId) {
     vencimientos: [],
     centrosCostos: [],
     obligaciones: [],
+    cobrar: { total: 0, vencido: 0, venceSemana: 0, clientes: [] },
   })
   const [loading, setLoading] = useState(true)
 
@@ -71,6 +74,7 @@ function useDashboard(comercioId) {
       resLotes,
       resCCs,
       resObligaciones,
+      resDeudas,
     ] = await Promise.all([
       // Trae proveedor y estado para el desglose (igual que useCompras.js)
       supabase.from('compras')
@@ -81,7 +85,16 @@ function useDashboard(comercioId) {
       supabase.from('lotes').select('id, fecha_vencimiento, cantidad_actual, productos(nombre)').eq('estado', 'activo').not('fecha_vencimiento', 'is', null).lte('fecha_vencimiento', en30dias.toISOString().split('T')[0]).order('fecha_vencimiento').limit(8),
       supabase.from('centros_costos').select('id, nombre, color').eq('activo', true).eq('comercio_id', comercioId),
       supabase.from('obligaciones_imp').select('id, nombre, categoria, monto_estimado, proximo_vencimiento, periodicidad').eq('activo', true).eq('comercio_id', comercioId).order('proximo_vencimiento').limit(12),
+      cargarDeudas(comercioId),
     ])
+
+    const clientesDeuda = resumirPorCliente(resDeudas.data || [])
+    const cobrar = {
+      total:       clientesDeuda.reduce((s, c) => s + c.saldo, 0),
+      vencido:     clientesDeuda.reduce((s, c) => s + c.vencido, 0),
+      venceSemana: clientesDeuda.reduce((s, c) => s + c.venceSemana, 0),
+      clientes:    clientesDeuda,
+    }
 
     // Agrupar compras por proveedor
     const provMap = {}
@@ -108,6 +121,7 @@ function useDashboard(comercioId) {
       vencimientos,
       centrosCostos: resCCs.data || [],
       obligaciones:  resObligaciones.data || [],
+      cobrar,
     })
     setLoading(false)
   }
@@ -330,6 +344,33 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [verProveedores])
 
+  /* Panel desglose cuentas por cobrar */
+  const [verCobrar,     setVerCobrar]     = useState(false)
+  const [cuentaCliente, setCuentaCliente] = useState(null)
+  const panelCobrarRef  = useRef(null)
+  const metricCobrarRef = useRef(null)
+
+  useEffect(() => {
+    if (!verCobrar) return
+    function onClickOutside(e) {
+      if (
+        panelCobrarRef.current  && !panelCobrarRef.current.contains(e.target) &&
+        metricCobrarRef.current && !metricCobrarRef.current.contains(e.target)
+      ) {
+        setVerCobrar(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [verCobrar])
+
+  function mensajeRecordatorio(c) {
+    const nombre = c.cliente?.nombre || ''
+    return c.vencido > 0
+      ? `Hola ${nombre}, te recordamos que tenés un saldo vencido de ${fmt$(c.vencido)} en tu cuenta corriente${c.vtoMasViejo ? ` (desde el ${fmtFecha(c.vtoMasViejo)})` : ''}. ¡Gracias!`
+      : `Hola ${nombre}, te recordamos que tu saldo en cuenta corriente es de ${fmt$(c.saldo)}${c.proxVto ? ` y vence el ${fmtFecha(c.proxVto)}` : ''}. ¡Gracias!`
+  }
+
   function scrollAVencimientos() {
     document.getElementById('dash-vencimientos')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -399,7 +440,89 @@ export default function Dashboard() {
           active={verProveedores}
           ref={metricProvRef}
         />
+        <MetricCard
+          label="A cobrar Cta. Cte."
+          value={fmt$(datos.cobrar.total)}
+          sub={
+            datos.cobrar.vencido > 0
+              ? `${fmt$(datos.cobrar.vencido)} vencido`
+              : datos.cobrar.venceSemana > 0
+                ? `${fmt$(datos.cobrar.venceSemana)} vence esta semana`
+                : `${datos.cobrar.clientes.length} cliente${datos.cobrar.clientes.length !== 1 ? 's' : ''} · al día`
+          }
+          colorClass={datos.cobrar.vencido > 0 ? 'danger' : datos.cobrar.venceSemana > 0 ? 'warning' : 'info'}
+          loading={loading}
+          onClick={() => { if (!loading && datos.cobrar.clientes.length > 0) setVerCobrar(v => !v) }}
+          hint={datos.cobrar.clientes.length > 0 ? 'Ver clientes ↓' : undefined}
+          active={verCobrar}
+          ref={metricCobrarRef}
+        />
       </div>
+
+      {/* Panel desglose cuentas por cobrar */}
+      {verCobrar && (
+        <div className="dash-prov-panel dash-cobrar-panel" ref={panelCobrarRef}>
+          <div className="dash-prov-panel-header">
+            <i className="ti ti-notebook" style={{ color: 'var(--color-info)', fontSize: 14 }} />
+            <span>Cuentas corrientes de clientes</span>
+            {datos.cobrar.vencido > 0 && (
+              <span className="badge badge--danger">{fmt$(datos.cobrar.vencido)} vencido</span>
+            )}
+            {datos.cobrar.venceSemana > 0 && (
+              <span className="badge badge--warning">{fmt$(datos.cobrar.venceSemana)} vence en 7 días</span>
+            )}
+            <button type="button" className="dash-prov-close" onClick={() => setVerCobrar(false)} title="Cerrar">
+              <i className="ti ti-x" />
+            </button>
+          </div>
+          <div className="dash-prov-list">
+            {datos.cobrar.clientes.map(c => {
+              const wa = linkWhatsApp(c.telefono, mensajeRecordatorio(c))
+              return (
+                <div key={c.id} className="dash-cobrar-row">
+                  <button
+                    type="button"
+                    className="dash-prov-row dash-prov-row--btn"
+                    onClick={() => { if (c.cliente) { setCuentaCliente(c.cliente); setVerCobrar(false) } }}
+                    title={`Ver cuenta de ${c.nombre}`}
+                  >
+                    <div className="dash-prov-info">
+                      <span className="dash-prov-nombre">{c.nombre}</span>
+                      <span className="dash-prov-cant">
+                        {c.diasAtraso > 0 ? (
+                          <span className="badge badge--danger" style={{ fontSize: 9 }}>
+                            {fmt$(c.vencido)} vencido · {c.diasAtraso} d
+                          </span>
+                        ) : c.venceSemana > 0 ? (
+                          <span className="badge badge--warning" style={{ fontSize: 9 }}>vence {fmtFecha(c.proxVto)}</span>
+                        ) : (
+                          <>próx. vto. {fmtFecha(c.proxVto)}</>
+                        )}
+                      </span>
+                    </div>
+                    <span className={`dash-prov-total${c.vencido > 0 ? ' dash-cobrar-total--vencido' : ''}`}>{fmt$(c.saldo)}</span>
+                    <i className="ti ti-chevron-right dash-prov-arrow" />
+                  </button>
+                  {wa ? (
+                    <a className="btn-icon dash-cobrar-wa" href={wa} target="_blank" rel="noreferrer" title="Recordar por WhatsApp">
+                      <i className="ti ti-brand-whatsapp" />
+                    </a>
+                  ) : (
+                    <span className="btn-icon dash-cobrar-wa dash-cobrar-wa--off" title="Sin teléfono cargado">
+                      <i className="ti ti-brand-whatsapp" />
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <Link to="/clientes" className="dash-card-footer-link" onClick={() => setVerCobrar(false)}>
+            <i className="ti ti-users" />
+            <span>Ver en Clientes</span>
+            <i className="ti ti-chevron-right" />
+          </Link>
+        </div>
+      )}
 
       {/* Panel desglose proveedores */}
       {verProveedores && (
@@ -643,6 +766,15 @@ export default function Dashboard() {
           perfilId={perfil?.id}
           onCerrar={() => setSelectedProv(null)}
           onPagado={() => { recargar(); setSelectedProv(null) }}
+        />
+      )}
+
+      {cuentaCliente && (
+        <CuentaClientePanel
+          cliente={cuentaCliente}
+          comercioId={comercioId}
+          onCerrar={() => setCuentaCliente(null)}
+          onCambio={recargar}
         />
       )}
     </div>

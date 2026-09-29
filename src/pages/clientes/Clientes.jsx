@@ -1,7 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useClientes } from '../../hooks/useClientes'
+import { cargarDeudas, resumirPorCliente } from '../../hooks/useCuentasCobrar'
 import ClientePanel from './ClientePanel'
+import CuentaClientePanel from './CuentaClientePanel'
 import './Clientes.css'
 
 const TIPO_BADGE = {
@@ -24,12 +27,34 @@ export default function Clientes() {
   const [soloActivos,  setSoloActivos]  = useState(true)
   const [panelAbierto, setPanelAbierto] = useState(false)
   const [editando,     setEditando]     = useState(null)
+  const [soloDeuda,    setSoloDeuda]    = useState(false)
+  const [cuentaDe,     setCuentaDe]     = useState(null)   // cliente con panel de Cta. Cte. abierto
+
+  /* Saldos de Cta. Cte. por cliente */
+  const [saldos, setSaldos] = useState({})   // { [clienteId]: { saldo, vencido, diasAtraso } }
+  const cargarSaldos = useCallback(async () => {
+    if (!comercioId) return
+    const { data } = await cargarDeudas(comercioId)
+    setSaldos(Object.fromEntries(resumirPorCliente(data).map(r => [r.id, r])))
+  }, [comercioId])
+  useEffect(() => { cargarSaldos() }, [cargarSaldos])
+
+  /* ?cuenta=<id> abre directamente la cuenta del cliente (desde Dashboard) */
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const id = searchParams.get('cuenta')
+    if (!id || clientes.length === 0) return
+    const c = clientes.find(x => x.id === id)
+    if (c) setCuentaDe(c)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, clientes, setSearchParams])
 
   const filtrados = useMemo(() => {
     const q = busqueda.toLowerCase()
     return clientes.filter(c => {
       if (soloActivos && !c.activo) return false
       if (filtroTipo && c.tipo !== filtroTipo) return false
+      if (soloDeuda && !saldos[c.id]) return false
       if (!q) return true
       const nombre = `${c.nombre} ${c.apellido || ''} ${c.razon_social || ''}`.toLowerCase()
       return (
@@ -40,7 +65,7 @@ export default function Clientes() {
         (c.email || '').toLowerCase().includes(q)
       )
     })
-  }, [clientes, busqueda, filtroTipo, soloActivos])
+  }, [clientes, busqueda, filtroTipo, soloActivos, soloDeuda, saldos])
 
   function abrirNuevo()   { setEditando(null); setPanelAbierto(true) }
   function abrirEditar(c) { setEditando(c);    setPanelAbierto(true) }
@@ -66,6 +91,9 @@ export default function Clientes() {
             <button className={`pill${!filtroTipo ? ' pill--active' : ''}`} onClick={() => setFiltroTipo(null)}>Todos</button>
             <button className={`pill${filtroTipo === 'cuenta_corriente' ? ' pill--active' : ''}`} onClick={() => setFiltroTipo('cuenta_corriente')}>Cta. Cte.</button>
             <button className={`pill${filtroTipo === 'mayorista' ? ' pill--active' : ''}`} onClick={() => setFiltroTipo('mayorista')}>Mayoristas</button>
+            <button className={`pill pill--warning${soloDeuda ? ' pill--active' : ''}`} onClick={() => setSoloDeuda(v => !v)}>
+              <i className="ti ti-alert-circle" /> Con deuda
+            </button>
             <button className={`pill${!soloActivos ? ' pill--active' : ''}`} onClick={() => setSoloActivos(v => !v)}>
               {soloActivos ? 'Solo activos' : 'Incluir inactivos'}
             </button>
@@ -85,7 +113,7 @@ export default function Clientes() {
         ) : filtrados.length === 0 ? (
           <div className="table-empty">
             <i className="ti ti-users" />
-            <span>{busqueda || filtroTipo ? 'Sin resultados' : 'No hay clientes. Creá el primero.'}</span>
+            <span>{busqueda || filtroTipo || soloDeuda ? 'Sin resultados' : 'No hay clientes. Creá el primero.'}</span>
             {!busqueda && !filtroTipo && (
               <button className="btn btn--primary" onClick={abrirNuevo}><i className="ti ti-plus" /> Nuevo cliente</button>
             )}
@@ -99,7 +127,7 @@ export default function Clientes() {
                 <th>Teléfono</th>
                 <th>Email</th>
                 <th>Tipo</th>
-                <th className="td-right">Saldo</th>
+                <th className="td-right">Saldo Cta. Cte.</th>
                 <th>Estado</th>
                 <th />
               </tr>
@@ -107,6 +135,7 @@ export default function Clientes() {
             <tbody>
               {filtrados.map(c => {
                 const tipo = TIPO_BADGE[c.tipo] || { label: c.tipo, cls: 'badge--neutral' }
+                const cc   = saldos[c.id]
                 return (
                   <tr key={c.id} onClick={() => abrirEditar(c)}>
                     <td className="cli-nombre">
@@ -116,11 +145,16 @@ export default function Clientes() {
                     <td className="td-muted">{c.telefono || '—'}</td>
                     <td className="td-muted">{c.email || '—'}</td>
                     <td><span className={`badge ${tipo.cls}`}>{tipo.label}</span></td>
-                    <td className="td-right">
-                      {Number(c.saldo_cuenta) !== 0
-                        ? <span className={Number(c.saldo_cuenta) < 0 ? 'cli-saldo--neg' : 'cli-saldo--pos'}>{fmt$(c.saldo_cuenta)}</span>
-                        : <span className="td-muted">—</span>
-                      }
+                    <td className="td-right" onClick={e => { if (cc) { e.stopPropagation(); setCuentaDe(c) } }}>
+                      {cc ? (
+                        <span
+                          className={`cli-saldo${cc.vencido > 0 ? ' cli-saldo--neg' : ''}`}
+                          title={cc.vencido > 0 ? `Vencido ${fmt$(cc.vencido)} · ${cc.diasAtraso} días de atraso` : 'Al día'}
+                        >
+                          {cc.vencido > 0 && <i className="ti ti-alert-circle" />}
+                          {fmt$(cc.saldo)}
+                        </span>
+                      ) : <span className="td-muted">—</span>}
                     </td>
                     <td>
                       <span className={`badge ${c.activo ? 'badge--success' : 'badge--neutral'}`}>
@@ -129,6 +163,7 @@ export default function Clientes() {
                     </td>
                     <td className="td-actions" onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                        <button className="btn-icon" onClick={() => setCuentaDe(c)} title="Cuenta corriente"><i className="ti ti-notebook" /></button>
                         <button className="btn-icon" onClick={() => abrirEditar(c)} title="Editar"><i className="ti ti-pencil" /></button>
                         <button
                           className={`btn-icon${c.activo ? ' btn-icon--danger' : ''}`}
@@ -150,7 +185,7 @@ export default function Clientes() {
       {!loading && filtrados.length > 0 && (
         <p className="cli-count">
           {filtrados.length} cliente{filtrados.length !== 1 ? 's' : ''}
-          {busqueda || filtroTipo ? ' (filtrado)' : ''}
+          {busqueda || filtroTipo || soloDeuda ? ' (filtrado)' : ''}
         </p>
       )}
 
@@ -160,6 +195,15 @@ export default function Clientes() {
           onCrear={crear}
           onActualizar={actualizar}
           onCerrar={cerrar}
+        />
+      )}
+
+      {cuentaDe && (
+        <CuentaClientePanel
+          cliente={cuentaDe}
+          comercioId={comercioId}
+          onCerrar={() => setCuentaDe(null)}
+          onCambio={cargarSaldos}
         />
       )}
     </div>

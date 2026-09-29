@@ -1132,3 +1132,71 @@
 .pos-btn-cobrar:not(:disabled) {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
+
+/* ── Cta. Cte.: aviso de deuda y vencimiento ── */
+.pos-cc-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: var(--color-info-bg);
+  color: var(--color-text-primary);
+  border: 0.5px solid color-mix(in srgb, var(--color-info) 30%, transparent);
+}
+
+.pos-cc-aviso .ti { font-size: 15px; color: var(--color-info); flex-shrink: 0; margin-top: 1px; }
+.pos-cc-aviso p   { margin: 0; }
+
+.pos-cc-aviso--danger {
+  background: var(--color-danger-bg);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+.pos-cc-aviso--danger .ti  { color: var(--color-danger); }
+.pos-cc-aviso--danger strong { color: var(--color-danger-600); }
+
+.pos-cc-aviso--warning {
+  background: var(--color-warning-bg);
+  border-color: color-mix(in srgb, var(--color-warning) 35%, transparent);
+}
+.pos-cc-aviso--warning .ti { color: var(--color-warning-600); }
+
+.pos-cc-aviso-sub { color: var(--color-text-secondary); margin-top: 2px !important; }
+
+.pos-cc-vto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-app);
+}
+
+.pos-cc-vto-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+}
+
+.pos-cc-vto-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pos-cc-vto-fecha {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}

@@ -4,6 +4,7 @@ import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
 import * as XLSX from 'xlsx'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
+import { cargarDeudas, resumirPorCliente, sumarDias } from '../../hooks/useCuentasCobrar'
 import './Ventas.css'
 
 const fmt$ = v =>
@@ -150,6 +151,8 @@ export default function Ventas() {
   const [dropClienteAbierto,  setDropClienteAbierto]  = useState(false)
   const clienteInputRef = useRef(null)
   const [pagos,  setPagos]  = useState([{ _key: '1', medio_pago: 'efectivo', monto: '' }])
+  const [vtoCC,  setVtoCC]  = useState({ modo: 'defecto', fecha: '' })   // modo: defecto | 7 | 14 | 30 | fecha
+  const [deudaCliente, setDeudaCliente] = useState(null)                    // { saldo, vencido, diasAtraso }
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
@@ -196,7 +199,7 @@ export default function Ventas() {
         .order('nombre'),
       supabase
         .from('clientes')
-        .select('id, nombre, apellido, cuit')
+        .select('id, nombre, apellido, razon_social, cuit, telefono, plazo_dias, limite_credito')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -357,6 +360,32 @@ export default function Ventas() {
     setBusqCliente(`${c.nombre} ${c.apellido || ''}`.trim())
     setDropClienteAbierto(false)
   }
+
+  /* Deuda de Cta. Cte. del cliente seleccionado (para avisos) */
+  useEffect(() => {
+    if (!clienteSeleccionado || !comercioId) { setDeudaCliente(null); return }
+    let cancelado = false
+    cargarDeudas(comercioId, clienteSeleccionado.id).then(({ data }) => {
+      if (cancelado) return
+      const [r] = resumirPorCliente(data)
+      setDeudaCliente(r || { saldo: 0, vencido: 0, diasAtraso: 0 })
+    })
+    return () => { cancelado = true }
+  }, [clienteSeleccionado, comercioId])
+
+  /* Cta. Cte.: monto y vencimiento de esta venta */
+  const montoCC = pagos
+    .filter(p => p.medio_pago === 'cuenta_corriente')
+    .reduce((s, p) => s + (Number(p.monto) || 0), 0)
+  const hayCC        = pagos.some(p => p.medio_pago === 'cuenta_corriente')
+  const plazoDefecto = Number(clienteSeleccionado?.plazo_dias) || 30
+  const fechaVtoCC   = vtoCC.modo === 'fecha'
+    ? vtoCC.fecha
+    : sumarDias(vtoCC.modo === 'defecto' ? plazoDefecto : vtoCC.modo)
+  const limiteCC     = Number(clienteSeleccionado?.limite_credito) || 0
+  const superaLimite = limiteCC > 0 && deudaCliente && (deudaCliente.saldo + montoCC) > limiteCC + 0.009
+  // Cta. Cte. requiere cliente y fecha de vencimiento válida (la deuda vencida sólo avisa, no bloquea)
+  const bloqueoCC = hayCC && montoCC > 0 && (!clienteSeleccionado || !fechaVtoCC)
 
   /* ── Pagos ── */
   function actualizarPago(idx, campo, valor) {
@@ -524,6 +553,7 @@ export default function Ventas() {
     setComprobante(comprobantesDisponibles[0])
     setBusqCliente(''); setClienteSeleccionado(null); setDropClienteAbierto(false)
     setPagos([{ _key: '1', medio_pago: 'efectivo', monto: '' }])
+    setVtoCC({ modo: 'defecto', fecha: '' })
     setError(''); setBusqProd('')
     setNoEncontrado(false); setShowDrop(false)
     setShowItemLibre(false); setLibreDesc(''); setLibrePrice('')
@@ -531,7 +561,7 @@ export default function Ventas() {
 
   /* ── Cobrar ── */
   async function handleCobrar() {
-    if (!totales.pagoCompleto) return
+    if (!totales.pagoCompleto || bloqueoCC) return
     setSaving(true); setError('')
 
     const itemsVenta = carrito.map(it => it.esLibre
@@ -567,6 +597,10 @@ export default function Ventas() {
       pagosFinales = pagosFinales.filter(p => p.monto > 0.009)
     }
 
+    const ccFinal = +pagosFinales
+      .filter(p => p.medio_pago === 'cuenta_corriente')
+      .reduce((s, p) => s + p.monto, 0).toFixed(2)
+
     const res = await crear(
       {
         cliente_id:       clienteSeleccionado?.id || null,
@@ -574,6 +608,7 @@ export default function Ventas() {
         canal: 'mostrador', estado: 'completada',
         subtotal: totales.subtotalNeto, descuento_monto: +(totales.descMonto + totales.ahorroPromosMonto).toFixed(2),
         recargo_monto: 0, iva_monto: totales.iva21 + totales.iva105, total: totales.total,
+        ...(ccFinal > 0 && { cc_monto: ccFinal, fecha_vencimiento: fechaVtoCC }),
       },
       itemsVenta,
       pagosFinales,
@@ -949,6 +984,23 @@ export default function Ventas() {
                 )}
               </div>
             </div>
+
+            {/* Aviso deuda Cta. Cte. del cliente */}
+            {clienteSeleccionado && deudaCliente?.saldo > 0 && (
+              <div className={`pos-cc-aviso${deudaCliente.vencido > 0 ? ' pos-cc-aviso--danger' : ''}`}>
+                <i className={`ti ${deudaCliente.vencido > 0 ? 'ti-alert-triangle' : 'ti-notebook'}`} />
+                <div>
+                  {deudaCliente.vencido > 0 ? (
+                    <p><strong>Tiene {fmt$(deudaCliente.vencido)} vencido</strong> ({deudaCliente.diasAtraso} días de atraso)</p>
+                  ) : (
+                    <p>Saldo en Cta. Cte.: <strong>{fmt$(deudaCliente.saldo)}</strong> (al día)</p>
+                  )}
+                  {deudaCliente.vencido > 0 && deudaCliente.saldo > deudaCliente.vencido && (
+                    <p className="pos-cc-aviso-sub">Saldo total {fmt$(deudaCliente.saldo)}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Medios de pago */}
@@ -1010,6 +1062,50 @@ export default function Ventas() {
                 {`Faltan ${fmt$(Math.abs(totales.diferencia))}`}
               </div>
             )}
+
+            {/* Cta. Cte. — vencimiento y validaciones */}
+            {hayCC && (
+              <div className="pos-cc-vto">
+                <p className="pos-cc-vto-title"><i className="ti ti-calendar-due" /> Vencimiento Cta. Cte.</p>
+                <div className="pos-cc-vto-opts">
+                  {[7, 14, 30].map(d => {
+                    const activo = vtoCC.modo === d || (vtoCC.modo === 'defecto' && plazoDefecto === d)
+                    return (
+                      <button key={d} type="button" className={`pill${activo ? ' pill--active' : ''}`}
+                        onClick={() => setVtoCC(v => ({ ...v, modo: d }))}>
+                        {d} días
+                      </button>
+                    )
+                  })}
+                  {vtoCC.modo === 'defecto' && ![7, 14, 30].includes(plazoDefecto) && (
+                    <button type="button" className="pill pill--active">{plazoDefecto} días</button>
+                  )}
+                  <button type="button" className={`pill${vtoCC.modo === 'fecha' ? ' pill--active' : ''}`}
+                    onClick={() => setVtoCC(v => ({ modo: 'fecha', fecha: v.fecha || fechaVtoCC }))}>
+                    <i className="ti ti-calendar" /> Fecha
+                  </button>
+                </div>
+                {vtoCC.modo === 'fecha' ? (
+                  <input className="field-input" type="date" value={vtoCC.fecha}
+                    min={sumarDias(0)} onChange={e => setVtoCC({ modo: 'fecha', fecha: e.target.value })} />
+                ) : (
+                  <p className="pos-cc-vto-fecha">
+                    Vence el {new Date(fechaVtoCC + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
+                {!clienteSeleccionado && (
+                  <div className="pos-diferencia pos-diferencia--faltan">
+                    <i className="ti ti-user-exclamation" /> Elegí un cliente para vender a Cta. Cte.
+                  </div>
+                )}
+                {superaLimite && (
+                  <div className="pos-cc-aviso pos-cc-aviso--warning">
+                    <i className="ti ti-alert-circle" />
+                    <p>Supera el límite de crédito ({fmt$(limiteCC)}): quedaría en {fmt$(deudaCliente.saldo + montoCC)}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Totales */}
@@ -1065,7 +1161,7 @@ export default function Ventas() {
             type="button"
             className="btn btn--primary pos-btn-cobrar"
             onClick={handleCobrar}
-            disabled={saving || !totales.pagoCompleto}
+            disabled={saving || !totales.pagoCompleto || bloqueoCC}
           >
             <i className={`ti ${saving ? 'ti-loader-2' : 'ti-cash'}`} />
             {saving ? 'Procesando...' : carrito.length === 0 ? 'Cobrar' : `Cobrar ${fmt$(totales.total)}`}

@@ -9,7 +9,7 @@ const TIPOS = [
 const DEFAULTS = {
   nombre: '', apellido: '', razon_social: '', dni: '', cuit: '',
   telefono: '', email: '', direccion: '', localidad: '', provincia: 'La Rioja',
-  tipo: 'consumidor_final', limite_credito: 0, notas: '', activo: true,
+  tipo: 'consumidor_final', limite_credito: 0, plazo_dias: 30, notas: '', activo: true,
 }
 
 function toForm(c) {
@@ -27,6 +27,7 @@ function toForm(c) {
     provincia:      c.provincia      ?? 'La Rioja',
     tipo:           c.tipo           ?? 'consumidor_final',
     limite_credito: c.limite_credito ?? 0,
+    plazo_dias:     c.plazo_dias     ?? 30,
     notas:          c.notas          ?? '',
     activo:         c.activo         ?? true,
   }
@@ -64,6 +65,7 @@ export default function ClientePanel({ cliente, onCrear, onActualizar, onCerrar 
       provincia:      form.provincia.trim()    || null,
       tipo:           form.tipo,
       limite_credito: Number(form.limite_credito) || 0,
+      plazo_dias:     Number(form.plazo_dias) || 30,
       notas:          form.notas.trim()        || null,
       activo:         form.activo,
     }
@@ -168,10 +170,16 @@ export default function ClientePanel({ cliente, onCrear, onActualizar, onCerrar 
               {form.tipo === 'cuenta_corriente' && (
                 <div className="field">
                   <label className="field-label">Límite crédito $</label>
-                  <input className="field-input" type="number" min="0" step="100" placeholder="0"
+                  <input className="field-input" type="number" min="0" step="100" placeholder="0 = sin límite"
                     value={form.limite_credito} onChange={e => setF('limite_credito', e.target.value)} />
                 </div>
               )}
+            </div>
+            <div className="field">
+              <label className="field-label">Plazo Cta. Cte. (días)</label>
+              <input className="field-input" type="number" min="1" step="1" placeholder="30"
+                value={form.plazo_dias} onChange={e => setF('plazo_dias', e.target.value)} />
+              <span className="field-hint">Vencimiento por defecto al vender a Cta. Cte. Se puede cambiar en cada venta.</span>
             </div>
           </div>
 

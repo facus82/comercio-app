@@ -8,6 +8,15 @@
   text-overflow: ellipsis;
 }
 
+.cli-saldo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cli-saldo:hover { text-decoration: underline; }
+.cli-saldo i { font-size: 12px; }
 .cli-saldo--neg { color: var(--color-danger-600); font-weight: 500; }
 .cli-saldo--pos { color: var(--color-success-700); font-weight: 500; }
 

@@ -27,7 +27,7 @@
 /* ── Fila 1: Métricas ────────────────── */
 .dash-metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--space-4);
 }
 
@@ -686,4 +686,42 @@
   .dash-row2 {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Panel cuentas por cobrar (clientes) ── */
+.dash-cobrar-panel { border-color: var(--color-info); }
+
+.dash-cobrar-panel .dash-prov-row--btn:hover {
+  background: color-mix(in srgb, var(--color-info) 8%, var(--color-bg-card));
+}
+
+.dash-cobrar-panel .dash-prov-total { color: var(--color-text-primary); }
+.dash-cobrar-panel .dash-prov-total.dash-cobrar-total--vencido { color: var(--color-danger); }
+
+.dash-cobrar-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dash-cobrar-row .dash-prov-row { flex: 1; min-width: 0; }
+
+.dash-cobrar-wa {
+  color: var(--color-success-600);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.dash-cobrar-wa:hover { background: var(--color-success-bg); }
+
+.dash-cobrar-wa--off {
+  color: var(--color-text-tertiary);
+  opacity: .4;
+  cursor: default;
+}
+
+.dash-cobrar-wa--off:hover { background: transparent; }
+
+@media (max-width: 1280px) and (min-width: 1025px) {
+  .dash-metrics { grid-template-columns: repeat(3, 1fr); }
 }
