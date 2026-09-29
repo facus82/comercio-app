@@ -10,6 +10,16 @@ export default function SetPassword() {
   const [error,     setError]     = useState('')
   const [loading,   setLoading]   = useState(false)
   const [sessionOk, setSessionOk] = useState(false)
+  // Link usado o vencido: Supabase lo informa en la URL (#error_code=otp_expired…)
+  const [expirado,  setExpirado]  = useState(() =>
+    /error_code=|error=access_denied/.test(window.location.hash + window.location.search))
+
+  // Si en unos segundos no aparece la sesión, el link no sirve: no quedar girando para siempre
+  useEffect(() => {
+    if (sessionOk || expirado) return
+    const t = setTimeout(() => setExpirado(true), 6000)
+    return () => clearTimeout(t)
+  }, [sessionOk, expirado])
 
   useEffect(() => {
     // Supabase procesa automáticamente el token del hash de la URL
@@ -54,14 +64,24 @@ export default function SetPassword() {
               </h1>
             </div>
           </div>
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <i className="ti ti-loader-2" style={{ fontSize: 28, color: '#94A3B8', display: 'block', marginBottom: 12 }} />
-            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Verificando enlace...</p>
-            <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
-              Si este mensaje no desaparece, el link puede haber expirado.<br />
-              Pedí un nuevo enlace al administrador.
-            </p>
-          </div>
+          {expirado ? (
+            <div className="setpass-estado">
+              <i className="ti ti-link-off setpass-estado-icon" />
+              <p className="setpass-estado-titulo">Este link ya se usó o venció</p>
+              <p className="setpass-estado-txt">
+                Los links para crear contraseña sirven una sola vez y duran 1 hora.
+                Pedí uno nuevo desde el inicio de sesión con “¿Olvidaste tu contraseña?”.
+              </p>
+              <button type="button" className="btn-login" onClick={() => navigate('/login', { replace: true })}>
+                Pedir un nuevo link
+              </button>
+            </div>
+          ) : (
+            <div className="setpass-estado">
+              <i className="ti ti-loader-2 setpass-estado-icon setpass-spin" />
+              <p className="setpass-estado-titulo">Verificando enlace...</p>
+            </div>
+          )}
         </div>
       </div>
     )
