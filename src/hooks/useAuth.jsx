@@ -40,6 +40,12 @@ export function AuthProvider({ children }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Link de "restablecer contraseña": aunque el mail redirija al inicio,
+      // llevar al formulario de nueva contraseña (la sesión de recuperación ya está activa)
+      if (_event === 'PASSWORD_RECOVERY' && window.location.pathname !== '/set-password') {
+        window.location.replace('/set-password')
+        return
+      }
       setSession(session)
       if (session?.user) {
         fetchPerfil(session.user.id)

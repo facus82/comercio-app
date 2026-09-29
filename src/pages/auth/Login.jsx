@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { supabase } from '../../lib/supabase'
 import './Login.css'
 
 export default function Login() {
@@ -10,6 +11,19 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [recupero, setRecupero] = useState(null)   // null | 'enviando' | 'enviado'
+
+  // Envía el link de recuperación; vuelve a /set-password para elegir la nueva contraseña
+  async function handleOlvide() {
+    setError('')
+    if (!email.trim()) { setError('Escribí tu email arriba y tocá de nuevo "¿Olvidaste tu contraseña?".'); return }
+    setRecupero('enviando')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/set-password`,
+    })
+    if (error) { setRecupero(null); setError('No se pudo enviar el email. Probá de nuevo en unos minutos.'); return }
+    setRecupero('enviado')
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -77,6 +91,16 @@ export default function Login() {
           <button type="submit" className="btn-login" disabled={loading}>
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
+
+          {recupero === 'enviado' ? (
+            <p className="login-recupero login-recupero--ok">
+              Si <strong>{email}</strong> tiene una cuenta, te enviamos un email con el link para crear una nueva contraseña.
+            </p>
+          ) : (
+            <button type="button" className="login-olvide" onClick={handleOlvide} disabled={recupero === 'enviando'}>
+              {recupero === 'enviando' ? 'Enviando...' : '¿Olvidaste tu contraseña?'}
+            </button>
+          )}
         </form>
       </div>
     </div>
