@@ -1355,3 +1355,22 @@
 }
 
 .cliente-dd-nuevo:hover { background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-card)); }
+
+/* ── Botón cámara en el buscador ── */
+.pos-btn-camara {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -6px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.pos-btn-camara:hover { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }

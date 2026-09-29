@@ -8,6 +8,7 @@ import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import { cargarDeudas, resumirPorCliente, sumarDias } from '../../hooks/useCuentasCobrar'
 import ClientePanel from '../clientes/ClientePanel'
 import { ProductoThumb } from '../../components/shared/ImagenProducto'
+import EscanerCodigo from '../../components/shared/EscanerCodigo'
 import './Ventas.css'
 
 const fmt$ = v =>
@@ -201,7 +202,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     const [resProds, resClis, resPromos] = await Promise.all([
       supabase
         .from('productos')
-        .select('id, nombre, codigo_barras, imagen_url, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
+        .select('id, nombre, codigo, codigo_barras, imagen_url, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -254,6 +255,17 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     setShowDrop(v.trim().length > 0)
   }
 
+  /* ── Escáner con cámara (celular sin lector) ── */
+  const [showEscaner, setShowEscaner] = useState(false)
+
+  // Devuelve { ok, texto } para que el escáner muestre el resultado de cada lectura
+  function leerCodigoCamara(codigo) {
+    const prod = productos.find(p => p.codigo_barras === codigo) || productos.find(p => p.codigo === codigo)
+    if (!prod) return { ok: false, texto: `Código ${codigo} no encontrado` }
+    agregarAlCarrito(prod, { enfocar: false })
+    return { ok: true, texto: `Agregado: ${prod.nombre}` }
+  }
+
   function handleBusqKeyDown(e) {
     if (e.key === 'Escape') {
       setBusqProd(''); setShowDrop(false); setNoEncontrado(false)
@@ -302,7 +314,8 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
   }
 
   /* ── Carrito ── */
-  const agregarAlCarrito = useCallback((prod) => {
+  // enfocar=false desde el escáner de cámara (no abrir el teclado del celular)
+  const agregarAlCarrito = useCallback((prod, { enfocar = true } = {}) => {
     const esPromo     = Number(prod.precio_mayorista) > 0 && Number(prod.precio_mayorista) < Number(prod.precio_venta)
     const precioFinal = esPromo ? Number(prod.precio_mayorista) : Number(prod.precio_venta)
 
@@ -314,7 +327,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     setBusqProd('')
     setShowDrop(false)
     setNoEncontrado(false)
-    setTimeout(() => busqRef.current?.focus(), 0)
+    if (enfocar) setTimeout(() => busqRef.current?.focus(), 0)
   }, [])
 
   function quitarDelCarrito(key) {
@@ -804,6 +817,10 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                   <i className="ti ti-x" />
                 </button>
               )}
+              <button type="button" className="pos-btn-camara" onClick={() => setShowEscaner(true)}
+                title="Escanear con la cámara" aria-label="Escanear con la cámara">
+                <i className="ti ti-camera" />
+              </button>
             </div>
 
             {/* Mensaje "no encontrado" */}
@@ -1314,6 +1331,16 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
           </button>
 
         </div>
+
+        {/* Escáner con cámara: queda abierto para leer varios productos seguidos */}
+        {showEscaner && (
+          <EscanerCodigo
+            continuo
+            titulo="Escanear productos"
+            onLeer={leerCodigoCamara}
+            onCerrar={() => setShowEscaner(false)}
+          />
+        )}
 
         {/* Alta rápida de cliente (misma ficha que el módulo Clientes) */}
         {nuevoCliente && (

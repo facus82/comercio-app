@@ -11,15 +11,16 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Ocultar columnas no esenciales: Código, Categoría, Costo, Estado */
-  .stock-page .data-table th:nth-child(1),
-  .stock-page .data-table td:nth-child(1),
-  .stock-page .data-table th:nth-child(3),
-  .stock-page .data-table td:nth-child(3),
-  .stock-page .data-table th:nth-child(4),
-  .stock-page .data-table td:nth-child(4),
-  .stock-page .data-table th:nth-child(7),
-  .stock-page .data-table td:nth-child(7) {
+  /* Ocultar columnas no esenciales del listado: Código, Categoría, Costo, Estado
+     (sólo .stock-tabla: no afectar las tablas de Proveedores/Lotes de la ficha) */
+  .stock-page .stock-tabla th:nth-child(1),
+  .stock-page .stock-tabla td:nth-child(1),
+  .stock-page .stock-tabla th:nth-child(3),
+  .stock-page .stock-tabla td:nth-child(3),
+  .stock-page .stock-tabla th:nth-child(4),
+  .stock-page .stock-tabla td:nth-child(4),
+  .stock-page .stock-tabla th:nth-child(7),
+  .stock-page .stock-tabla td:nth-child(7) {
     display: none;
   }
 

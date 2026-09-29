@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { borrarImagenProducto } from '../../lib/imagenes'
 import { ImagenProductoField } from '../../components/shared/ImagenProducto'
+import EscanerCodigo from '../../components/shared/EscanerCodigo'
 import './ProductoPanel.css'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'caja', 'pack', 'docena']
@@ -208,6 +209,7 @@ export default function ProductoPanel({
 }) {
   const { perfil } = useAuth()
   const comercioId = perfil?.comercio?.id
+  const [showEscaner, setShowEscaner] = useState(false)
   const [form, setForm]   = useState(() => toForm(producto))
   const [calc, setCalc]   = useState(() => initCalc(producto))
   const [precioManual, setPrecioManual] = useState(!!producto) // al editar, precio es manual
@@ -512,6 +514,13 @@ export default function ProductoPanel({
 
   return (
     <div className="producto-modal">
+        {showEscaner && (
+          <EscanerCodigo
+            titulo="Escanear código de barras"
+            onLeer={codigo => { setF('codigo_barras', codigo) }}
+            onCerrar={() => setShowEscaner(false)}
+          />
+        )}
 
         {/* Header */}
         <div className="panel-header">
@@ -553,8 +562,13 @@ export default function ProductoPanel({
                   </div>
                   <div className="field">
                     <label className="field-label">Código de barras</label>
-                    <input className="field-input" placeholder="7790001..."
-                      value={form.codigo_barras} onChange={e => setF('codigo_barras', e.target.value)} />
+                    <div className="prod-codbarras-row">
+                      <input className="field-input" placeholder="7790001..."
+                        value={form.codigo_barras} onChange={e => setF('codigo_barras', e.target.value)} />
+                      <button type="button" className="btn-icon" title="Escanear con la cámara" onClick={() => setShowEscaner(true)}>
+                        <i className="ti ti-camera" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="field">

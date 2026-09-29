@@ -33,13 +33,32 @@
   background: var(--color-bg);
 }
 
-/* En mobile: una columna */
-@media (max-width: 700px) {
+/* En mobile: una columna con UN solo scroll.
+   (Si cada columna conserva su propio overflow, la grilla reparte el alto
+   en dos mitades y Proveedores queda fijo ocupando la mitad de abajo.) */
+@media (max-width: 900px) {
   .producto-modal__body {
-    grid-template-columns: 1fr;
+    display: block;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .producto-modal__col {
+    overflow: visible;
+    padding: 14px 12px;
   }
   .producto-modal__col--right {
     border-left: none;
     border-top: 1px solid var(--color-border);
   }
+  /* Tablas de Proveedores y Lotes: scroll lateral en vez de desbordar */
+  .producto-modal .lotes-section { overflow-x: auto; }
 }
+
+/* Código de barras + botón cámara */
+.prod-codbarras-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.prod-codbarras-row .field-input { flex: 1; min-width: 0; }
+.prod-codbarras-row .btn-icon { width: 32px; height: 32px; }

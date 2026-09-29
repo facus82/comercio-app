@@ -204,7 +204,7 @@ export default function Stock() {
       {/* Tabla */}
       <div className="table-wrap">
         {loading ? (
-          <table className="data-table">
+          <table className="data-table stock-tabla">
             <thead>
               <tr>
                 <th>Código</th><th>Nombre</th><th>Categoría</th>
@@ -229,7 +229,7 @@ export default function Stock() {
             )}
           </div>
         ) : (
-          <table className="data-table">
+          <table className="data-table stock-tabla">
             <thead>
               <tr>
                 <th>Código</th>
