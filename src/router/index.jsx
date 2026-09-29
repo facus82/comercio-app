@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import AppLayout from '../components/layout/AppLayout'
 import SuperAdminLayout from '../components/layout/SuperAdminLayout'
@@ -19,6 +19,7 @@ const Clientes        = lazy(() => import('../pages/clientes/Clientes'))
 const Obligaciones    = lazy(() => import('../pages/obligaciones/Obligaciones'))
 const Config          = lazy(() => import('../pages/config/Config'))
 const Reportes        = lazy(() => import('../pages/reportes/Reportes'))
+const PosCaja         = lazy(() => import('../pages/ventas/PosCaja'))
 
 const router = createBrowserRouter([
   {
@@ -28,6 +29,15 @@ const router = createBrowserRouter([
   {
     path: '/set-password',
     element: <SetPassword />,
+  },
+  // ── Modo caja: POS a pantalla completa, sin sidebar ──────
+  {
+    path: '/pos',
+    element: (
+      <Suspense fallback={<div className="app-loading"><div className="app-loading-spinner" /></div>}>
+        <PosCaja />
+      </Suspense>
+    ),
   },
   // ── Panel superadmin (layout propio, guard por rol) ──────
   {

@@ -8,6 +8,7 @@ const SECTIONS = [
     items: [
       { to: '/dashboard',    label: 'Inicio',       icon: 'ti-layout-dashboard' },
       { to: '/ventas',       label: 'Ventas',        icon: 'ti-shopping-cart'    },
+      { to: '/pos',          label: 'Modo caja',     icon: 'ti-device-desktop'   },
       { to: '/caja',         label: 'Caja',          icon: 'ti-cash'             },
       { to: '/presupuestos', label: 'Presupuestos',  icon: 'ti-file-invoice'     },
     ],

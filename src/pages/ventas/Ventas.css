@@ -1251,3 +1251,84 @@
 
 .total-row--recargo { color: var(--color-warning-600); }
 .total-row--recargo .ti { font-size: 12px; }
+
+/* ════════════════════════════════════════════════════════
+   MODO CAJA + RESPONSIVE (celular / tablet)
+   ════════════════════════════════════════════════════════ */
+.pos-btn-modo-caja { margin-left: auto; }
+
+/* En modo caja el alto lo da el contenedor (sin header de la app) */
+.pos-root--caja { height: 100%; }
+
+.pos-kbd {
+  margin-left: 4px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  color: inherit;
+  opacity: .75;
+}
+
+.pos-mobile-bar { display: none; }
+
+/* Tablet vertical / notebooks chicas: columnas más parejas */
+@media (max-width: 1100px) and (min-width: 901px) {
+  .pos-root { grid-template-columns: 58% 42%; }
+}
+
+@media (max-width: 900px) {
+  /* Una sola columna: carrito arriba, cobro abajo */
+  .pos-root,
+  .pos-root--caja {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+    gap: 10px;
+    padding-bottom: 76px;   /* lugar para la barra inferior */
+  }
+
+  .pos-left  { overflow: visible; }
+  .pos-carrito { overflow: visible; flex: none; min-height: 120px; }
+  .pos-right { overflow: visible; scroll-margin-top: 8px; }
+
+  .pos-left-header .page-title { font-size: 14px; }
+  .pos-btn-modo-caja { padding: 6px 10px; }
+
+  /* Ítem del carrito: nombre arriba, controles abajo */
+  .carrito-item { flex-wrap: wrap; row-gap: 6px; }
+  .carrito-item-info { flex: 1 1 60%; min-width: 0; }
+  .carrito-item-controles { width: 100%; justify-content: flex-end; }
+  .carrito-recargo-concepto { max-width: none; }
+
+  .pos-kbd { display: none; }
+
+  /* Barra fija con total + Cobrar */
+  .pos-mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 60px;           /* encima del BottomNav de la app */
+    z-index: calc(var(--z-modal) - 1);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-bg-card);
+    border-top: 0.5px solid var(--color-border);
+    box-shadow: 0 -6px 18px rgba(15, 23, 42, .08);
+  }
+  .pos-mobile-bar--caja { bottom: 0; }
+
+  .pos-mobile-bar-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    font-variant-numeric: tabular-nums;
+  }
+  .pos-mobile-bar-info span   { font-size: 11px; color: var(--color-text-secondary); }
+  .pos-mobile-bar-info strong { font-size: 20px; font-weight: 700; color: var(--color-text-primary); }
+  .pos-mobile-bar .btn { padding: 12px 20px; font-size: 15px; font-weight: 600; }
+
+  /* En modo caja el contenido scrollea dentro del main */
+  .posc-main { overflow-y: auto; }
+}

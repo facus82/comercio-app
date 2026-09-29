@@ -1,0 +1,202 @@
+/* ── Modo caja (pantalla completa) ─────────────────────── */
+.posc-page {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-app);
+  overflow: hidden;
+}
+
+.posc-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 8px 14px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  flex-shrink: 0;
+}
+
+.posc-bar-marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.posc-bar-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 30%, transparent);
+  flex-shrink: 0;
+}
+
+.posc-bar-titulos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.posc-bar-titulos strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sidebar-text-active);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.posc-bar-titulos span {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.posc-bar-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: var(--sidebar-item-active-bg);
+  font-variant-numeric: tabular-nums;
+}
+
+.posc-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.posc-stat--total {
+  font-weight: 600;
+  color: var(--sidebar-text-active);
+}
+
+.posc-bar-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Botones sobre fondo oscuro */
+.posc-bar .btn-icon,
+.posc-bar .btn {
+  background: transparent;
+  border-color: var(--sidebar-section);
+  color: var(--sidebar-text-active);
+}
+.posc-bar .btn-icon:hover,
+.posc-bar .btn:hover:not(:disabled) {
+  background: var(--sidebar-item-active-bg);
+  color: #fff;
+}
+.posc-bar .btn--danger { color: #FCA5A5; border-color: color-mix(in srgb, var(--color-danger) 50%, transparent); }
+.posc-bar .btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 25%, transparent); }
+
+.posc-atajos-wrap { position: relative; }
+
+.posc-atajos {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-modal);
+  background: var(--color-bg-card);
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+  padding: 10px 12px;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.posc-atajos p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 1px 5px;
+  border: 0.5px solid var(--color-border-input);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-app);
+}
+
+.posc-main {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+/* ── Apertura de caja ── */
+.posc-apertura {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--color-bg-app);
+}
+
+.posc-apertura-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--color-bg-card);
+  border: 0.5px solid var(--color-border);
+  border-radius: 14px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+}
+
+.posc-apertura-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+
+.posc-apertura-card h1 { margin: 0; font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+.posc-apertura-card p  { margin: 0; font-size: 12px; color: var(--color-text-secondary); }
+
+.posc-apertura-input { font-size: 22px !important; font-weight: 600; padding: 10px 12px; }
+
+.posc-apertura-btn,
+.posc-apertura-salir {
+  justify-content: center;
+  padding: 10px 12px;
+}
+
+@media (max-width: 768px) {
+  .posc-solo-desktop { display: none; }
+  .posc-bar { gap: var(--space-2); padding: 8px 10px; }
+  .posc-bar-titulos span { display: none; }
+  .posc-main { padding: 8px; }
+}

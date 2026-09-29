@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useToast } from '../../hooks/useToast'
 import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
@@ -113,7 +115,9 @@ function calcularPromosAplicadas(carrito, pagos, promociones) {
     }))
 }
 
-export default function Ventas() {
+// modoCaja: POS a pantalla completa (ruta /pos) — queda abierto y encadena ventas
+export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
+  const toast = useToast()
   const { perfil } = useAuth()
   const comercioId            = perfil?.comercio?.id
   const descuentoEfectivoPct  = Number(perfil?.comercio?.descuento_efectivo_pct || 0)
@@ -122,7 +126,7 @@ export default function Ventas() {
   const [fechaFiltro, setFechaFiltro] = useState(() => new Date().toISOString().slice(0, 10))
   const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id, fechaFiltro)
 
-  const [vista, setVista] = useState('lista')
+  const [vista, setVista] = useState(modoCaja ? 'pos' : 'lista')
 
   /* ── Catálogo ── */
   const [productos,     setProductos]     = useState([])
@@ -625,9 +629,48 @@ export default function Ventas() {
       promosAplicadas,
     )
     setSaving(false)
-    if (res.error) setError(res.error.message || 'Error al guardar.')
-    else { resetPos(); setVista('lista') }
+    if (res.error) { setError(res.error.message || 'Error al guardar.'); return }
+
+    if (!modoCaja) { resetPos(); setVista('lista'); return }
+
+    // Modo caja: queda listo para la próxima venta
+    const vendidos = new Map()
+    carrito.forEach(it => { if (!it.esLibre) vendidos.set(it.producto.id, (vendidos.get(it.producto.id) || 0) + it.cantidad) })
+    setProductos(prev => prev.map(p => vendidos.has(p.id) && p.controla_stock
+      ? { ...p, stock_actual: Number(p.stock_actual) - vendidos.get(p.id) } : p))
+    toast?.success(
+      `Venta ${res.data.numero} · ${fmt$(totales.total)}${totales.vuelto > 0.009 ? ` · vuelto ${fmt$(totales.vuelto)}` : ''}`,
+      totales.vuelto > 0.009 ? 8000 : 4000,
+    )
+    resetPos()
+    onVentaRegistrada?.()
+    setTimeout(() => busqRef.current?.focus(), 50)
   }
+
+  /* ── Atajos de teclado del POS ── */
+  // La ref guarda los handlers del último render, así el listener no queda con estado viejo
+  const atajosRef = useRef({})
+  useEffect(() => {
+    atajosRef.current = {
+      cobrar:  () => { if (!saving && totales.pagoCompleto && !bloqueoCC) handleCobrar() },
+      buscar:  () => busqRef.current?.focus(),
+      cliente: () => { if (clienteSeleccionado) seleccionarCliente(null); setTimeout(() => clienteInputRef.current?.focus(), 0) },
+      recargo: () => { if (carrito.length) setRecargo(r => r.activo ? RECARGO_INICIAL : { ...r, activo: true, concepto: hayCC ? 'Financiación Cta. Cte.' : '' }) },
+      vaciar:  () => { if (carrito.length && window.confirm('¿Vaciar la venta en curso?')) resetPos() },
+    }
+  })
+  useEffect(() => {
+    if (vista !== 'pos') return
+    const MAPA = { F2: 'cobrar', F3: 'buscar', F4: 'cliente', F6: 'recargo', F9: 'vaciar' }
+    function onKey(e) {
+      const accion = MAPA[e.key]
+      if (!accion) return
+      e.preventDefault()
+      atajosRef.current[accion]()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [vista])
 
   /* ── Exportar Excel ── */
   async function exportarExcel() {
@@ -684,17 +727,22 @@ export default function Ventas() {
     const hayEfectivo = pagos.some(p => p.medio_pago === 'efectivo')
 
     return (
-      <div className="pos-root">
+      <div className={`pos-root${modoCaja ? ' pos-root--caja' : ''}`}>
 
         {/* ════ COLUMNA IZQUIERDA 65% ════ */}
         <div className="pos-left">
 
-          <div className="pos-left-header">
-            <button className="btn" onClick={() => { resetPos(); setVista('lista') }}>
-              <i className="ti ti-arrow-left" /> Volver
-            </button>
-            <h1 className="page-title">Nueva venta</h1>
-          </div>
+          {!modoCaja && (
+            <div className="pos-left-header">
+              <button className="btn" onClick={() => { resetPos(); setVista('lista') }}>
+                <i className="ti ti-arrow-left" /> Volver
+              </button>
+              <h1 className="page-title">Nueva venta</h1>
+              <Link to="/pos" className="btn pos-btn-modo-caja" title="POS a pantalla completa para dejar abierto todo el día">
+                <i className="ti ti-device-desktop" /> Modo caja
+              </Link>
+            </div>
+          )}
 
           {/* ── Buscador POS ── */}
           <div className="pos-search-wrap" ref={dropRef}>
@@ -946,7 +994,7 @@ export default function Ventas() {
         </div>
 
         {/* ════ COLUMNA DERECHA 35% — Panel de cobro ════ */}
-        <div className="pos-right">
+        <div className="pos-right" id="pos-cobro">
           {error && <div className="error-banner"><i className="ti ti-alert-circle" /> {error}</div>}
 
           {/* Comprobante */}
@@ -1214,9 +1262,24 @@ export default function Ventas() {
           >
             <i className={`ti ${saving ? 'ti-loader-2' : 'ti-cash'}`} />
             {saving ? 'Procesando...' : carrito.length === 0 ? 'Cobrar' : `Cobrar ${fmt$(totales.total)}`}
+            <kbd className="pos-kbd">F2</kbd>
           </button>
 
         </div>
+
+        {/* Barra inferior en celular: total + ir al cobro */}
+        {carrito.length > 0 && (
+          <div className={`pos-mobile-bar${modoCaja ? ' pos-mobile-bar--caja' : ''}`}>
+            <div className="pos-mobile-bar-info">
+              <span>{carrito.reduce((s, it) => s + it.cantidad, 0)} u. · Total</span>
+              <strong>{fmt$(totales.total)}</strong>
+            </div>
+            <button type="button" className="btn btn--filled"
+              onClick={() => document.getElementById('pos-cobro')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <i className="ti ti-cash" /> Cobrar
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -1269,6 +1332,9 @@ export default function Ventas() {
           >
             <i className="ti ti-file-spreadsheet" /> Excel
           </button>
+          <Link to="/pos" className="btn" title="POS a pantalla completa para dejar abierto todo el día">
+            <i className="ti ti-device-desktop" /> Modo caja
+          </Link>
           <button className="btn btn--primary" onClick={() => setVista('pos')}>
             <i className="ti ti-plus" /> Nueva venta
           </button>
