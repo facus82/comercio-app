@@ -132,7 +132,7 @@ function GraficoDias({ dias }) {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const H = 200, IZQ = 64, ABA = 24, ARR = 10
+  const H = 200, IZQ = 84, ABA = 24, ARR = 10   // IZQ: lugar para "$ 200 mil" en el eje
   const max = Math.max(...dias.map(d => d.total), 0)
   // Tope del eje redondeado a un valor "lindo"
   const paso = max > 0 ? Math.pow(10, Math.floor(Math.log10(max))) : 1
