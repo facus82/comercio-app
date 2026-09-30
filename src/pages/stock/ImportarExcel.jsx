@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { subirImagenProducto } from '../../lib/imagenes'
 import './ImportarExcel.css'
 
 const CAMPOS = [
@@ -13,53 +14,109 @@ const CAMPOS = [
   { id: 'precio_venta',  label: 'Precio venta',     required: false },
   { id: 'stock_actual',  label: 'Stock actual',     required: false },
   { id: 'stock_minimo',  label: 'Stock mínimo',     required: false },
+  { id: 'imagen',        label: 'Imagen',           required: false },
 ]
 
-// Intenta detectar automáticamente el mapeo según los encabezados
+const SINONIMOS = {
+  nombre:        ['nombre', 'name', 'producto', 'descripcion', 'articulo'],
+  codigo:        ['codigo', 'code', 'cod', 'sku', 'ref', 'id'],
+  codigo_barras: ['barras', 'ean', 'barcode', 'gtin', 'codigo_barras'],
+  categoria:     ['categoria', 'category', 'rubro', 'tipo'],
+  subcategoria:  ['subcategoria', 'subcategory', 'subrubro'],
+  proveedor:     ['proveedor', 'supplier', 'distribuidor', 'marca'],
+  precio_costo:  ['costo', 'precio_costo', 'cost', 'compra', 'precio_compra'],
+  precio_venta:  ['precio_venta', 'venta', 'precio', 'price'],
+  stock_actual:  ['stock_actual', 'stock', 'cantidad', 'qty', 'existencia', 'inicial'],
+  stock_minimo:  ['stock_minimo', 'minimo', 'min'],
+  imagen:        ['imagen', 'image', 'foto', 'photo', 'img'],
+}
+
+// "Stock _Inicial" → "stock_inicial", "Categoría" → "categoria"
+const normalizar = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .trim().replace(/[\s_-]+/g, '_')
+
+// Para comparar nombres: "Librería " = "libreria", "Art.  Limpieza" = "art. limpieza"
+const mismoNombre = (a, b) => claveNombre(a) === claveNombre(b)
+const claveNombre = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/\s+/g, ' ').trim()
+
+function coincide(header, sinonimo) {
+  if (header === sinonimo) return true
+  if (header.split('_').includes(sinonimo)) return true
+  return sinonimo.length >= 4 && header.includes(sinonimo)
+}
+
+/* Detecta el mapeo según los encabezados. Primero los que coinciden exacto con el campo
+   (así "stock_minimo" no termina como stock actual ni "Id_productos" como nombre),
+   después por sinónimo, sin repetir columna. */
 function autoDetectar(headers) {
+  const hs = headers.map(normalizar)
   const mapeo = {}
-  const SINONIMOS = {
-    nombre:        ['nombre', 'name', 'producto', 'descripcion', 'articulo'],
-    codigo:        ['codigo', 'code', 'cod', 'sku', 'ref'],
-    codigo_barras: ['barras', 'ean', 'barcode', 'gtin', 'codigo_barras'],
-    categoria:     ['categoria', 'category', 'rubro', 'tipo'],
-    subcategoria:  ['subcategoria', 'subcategory', 'subrubro', 'sub'],
-    proveedor:     ['proveedor', 'supplier', 'distribuidor', 'marca'],
-    precio_costo:  ['costo', 'precio_costo', 'cost', 'compra', 'precio compra'],
-    precio_venta:  ['venta', 'precio_venta', 'precio', 'price', 'precio venta'],
-    stock_actual:  ['stock', 'cantidad', 'stock_actual', 'qty', 'existencia'],
-    stock_minimo:  ['minimo', 'stock_minimo', 'min', 'minimo'],
+  const usadas = new Set()
+  for (const campo of CAMPOS.map(c => c.id)) {
+    const i = hs.indexOf(campo)
+    if (i >= 0) { mapeo[campo] = i; usadas.add(i) }
   }
-  headers.forEach((h, i) => {
-    const hn = (h || '').toLowerCase().trim()
-    for (const [campo, sinonimos] of Object.entries(SINONIMOS)) {
-      if (sinonimos.some(s => hn.includes(s)) && mapeo[campo] === undefined) {
-        mapeo[campo] = i
-      }
+  for (const campo of CAMPOS.map(c => c.id)) {
+    if (mapeo[campo] !== undefined) continue
+    for (const s of SINONIMOS[campo]) {
+      const i = hs.findIndex((h, j) => !usadas.has(j) && coincide(h, s))
+      if (i >= 0) { mapeo[campo] = i; usadas.add(i); break }
     }
-  })
+  }
   return mapeo
 }
 
-function leerArchivo(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = async e => {
-      try {
-        const XLSX = await import('xlsx')  // se descarga sólo al usarse
-        const wb = XLSX.read(e.target.result, { type: 'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-        const headers = (data[0] || []).map(String)
-        const filas   = data.slice(1).filter(row => row.some(c => String(c).trim() !== ''))
-        resolve({ headers, filas })
-      } catch (err) {
-        reject(err)
-      }
+/* Acepta "1500", "1500.50", "1.500", "$ 1.234,50", "1,234.50", "30%".
+   El último separador con 1-2 decimales es el decimal; un punto o coma con 3 dígitos detrás es de miles. */
+export function parseNumero(v) {
+  if (typeof v === 'number') return v
+  let s = String(v ?? '').replace(/[^\d.,-]/g, '')
+  if (!s) return 0
+  const ultimo = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','))
+  if (ultimo >= 0) {
+    const decimales = s.length - ultimo - 1
+    const sep = s[ultimo]
+    const otroSepPresente = s.includes(sep === '.' ? ',' : '.')
+    const repetido = s.indexOf(sep) !== ultimo
+    if (!otroSepPresente && (repetido || decimales === 3)) {
+      s = s.split(sep).join('')                     // sólo separadores de miles
+    } else {
+      s = s.slice(0, ultimo).replace(/[.,]/g, '') + '.' + s.slice(ultimo + 1)
     }
-    reader.onerror = reject
-    reader.readAsArrayBuffer(file)
-  })
+  }
+  const n = parseFloat(s)
+  return Number.isFinite(n) ? n : 0
+}
+
+// "Productos_Images/abc.Imagen.0123.jpg" → "abc.imagen.0123.jpg"
+const nombreArchivo = s => String(s || '').split(/[\\/]/).pop().trim().toLowerCase()
+const esUrl = s => /^https?:\/\//i.test(String(s || '').trim())
+
+// 0 → A, 25 → Z, 26 → AA (los CSV de AppSheet traen muchas columnas)
+function colLetra(i) {
+  let s = ''
+  for (i += 1; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s
+  return s
+}
+
+async function leerArchivo(file) {
+  const XLSX = await import('xlsx')  // se descarga sólo al usarse
+  const buf = await file.arrayBuffer()
+  let wb
+  if (/\.csv$/i.test(file.name)) {
+    // CSV como texto: UTF-8 (AppSheet, Google Sheets) y si no, Latin-1 (Excel viejo)
+    let texto = new TextDecoder('utf-8').decode(buf)
+    if (texto.includes('�')) texto = new TextDecoder('windows-1252').decode(buf)
+    wb = XLSX.read(texto.replace(/^﻿/, ''), { type: 'string', raw: true })
+  } else {
+    wb = XLSX.read(buf, { type: 'array' })
+  }
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const headers = (data[0] || []).map(String)
+  const filas   = data.slice(1).filter(row => row.some(c => String(c).trim() !== ''))
+  return { headers, filas }
 }
 
 async function descargarPlantilla() {
@@ -77,16 +134,61 @@ async function descargarPlantilla() {
 
 export default function ImportarExcel({
   productos, categorias, subcategorias = [], proveedores = [], comercioId,
-  onCrear, onActualizar, onCerrar,
+  onCrear, onActualizar, onImportado, onCerrar,
 }) {
   const fileRef = useRef(null)
+  const imgRef  = useRef(null)
   const [paso, setPaso]         = useState(1) // 1 upload · 2 mapeo · 3 resultado
   const [arrastrando, setArr]   = useState(false)
   const [headers, setHeaders]   = useState([])
   const [filas, setFilas]       = useState([])
   const [mapeo, setMapeo]       = useState({})
+  const [imagenes, setImagenes] = useState(new Map()) // nombre de archivo en minúscula → File
   const [importando, setImp]    = useState(false)
+  const [progreso, setProgreso] = useState(0)
   const [resultado, setResult]  = useState(null)
+
+  // Valores de la columna imagen que no son URL: hay que elegir la carpeta con las fotos
+  const imgValores = mapeo.imagen === undefined ? []
+    : filas.map(r => String(r[mapeo.imagen] ?? '').trim()).filter(Boolean)
+  const imgArchivos    = imgValores.filter(v => !esUrl(v))
+  const imgEncontradas = imgArchivos.filter(v => imagenes.has(nombreArchivo(v))).length
+
+  // Categorías del archivo, separadas en las que ya existen y las que se van a crear
+  const catsArchivo = new Map()
+  if (mapeo.categoria !== undefined) {
+    for (const r of filas) {
+      const v = String(r[mapeo.categoria] ?? '').trim()
+      if (v && !catsArchivo.has(claveNombre(v))) catsArchivo.set(claveNombre(v), v)
+    }
+  }
+  const catsNuevas     = [...catsArchivo.values()].filter(v => !categorias.some(c => mismoNombre(c.nombre, v)))
+  const catsExistentes = catsArchivo.size - catsNuevas.length
+
+  function elegirImagenes(fileList) {
+    const m = new Map()
+    for (const f of fileList) if (/^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|heic)$/i.test(f.name)) m.set(f.name.toLowerCase(), f)
+    setImagenes(m)
+  }
+
+  async function resolverImagen(valor) {
+    if (!valor) return null
+    if (esUrl(valor)) {
+      // Se intenta copiar a nuestro almacenamiento; si el origen no deja (CORS), se guarda el link tal cual
+      try {
+        const resp = await fetch(valor)
+        if (!resp.ok) throw new Error()
+        const blob = await resp.blob()
+        const res = await subirImagenProducto(comercioId, new File([blob], 'img', { type: blob.type || 'image/jpeg' }))
+        return res.url || valor
+      } catch { return valor }
+    }
+    const file = imagenes.get(nombreArchivo(valor))
+    if (!file) return null
+    const res = await subirImagenProducto(comercioId, file.type ? file : new File([file], file.name, { type: 'image/jpeg' }))
+    if (res.error) throw new Error(`Imagen "${valor}": ${res.error.message}`)
+    return res.url
+  }
 
   async function procesarArchivo(file) {
     if (!file) return
@@ -109,58 +211,82 @@ export default function ImportarExcel({
   async function confirmar() {
     if (mapeo.nombre === undefined) { alert('Asigná al menos la columna "Nombre".'); return }
     setImp(true)
-    let creados = 0, actualizados = 0, errores = []
+    setProgreso(0)
+    let creados = 0, actualizados = 0, categoriasNuevas = 0, imagenesSubidas = 0, errores = []
+    const cats = [...categorias]
+    const mapeado = campo => mapeo[campo] !== undefined
 
-    for (const row of filas) {
+    // Las categorías que no existen se crean una sola vez
+    async function categoriaId(nombreCat) {
+      if (!nombreCat) return null
+      const hallada = cats.find(c => mismoNombre(c.nombre, nombreCat))
+      if (hallada) return hallada.id
+      const { data, error } = await supabase.from('categorias')
+        .insert({ nombre: nombreCat, color: '#3b82f6', comercio_id: comercioId })
+        .select('id, nombre, color').single()
+      if (error) throw new Error(`Categoría "${nombreCat}": ${error.message}`)
+      cats.push(data)
+      categoriasNuevas++
+      return data.id
+    }
+
+    for (let n = 0; n < filas.length; n++) {
+      const row = filas[n]
+      setProgreso(n + 1)
+      const val = i => (i !== undefined && i !== '' ? String(row[i] ?? '').trim() : '')
+      const nombre = val(mapeo.nombre)
       try {
-        const val = i => (i !== undefined && i !== '' ? String(row[i] ?? '').trim() : '')
-        const nombre = val(mapeo.nombre)
         if (!nombre) continue
 
-        const catNombre  = val(mapeo.categoria)
         const subNombre  = val(mapeo.subcategoria)
         const provNombre = val(mapeo.proveedor)
 
-        const cat  = catNombre
-          ? categorias.find(c => c.nombre.toLowerCase() === catNombre.toLowerCase())
-          : null
         const sub  = subNombre
-          ? subcategorias.find(s => s.nombre.toLowerCase() === subNombre.toLowerCase())
+          ? subcategorias.find(s => mismoNombre(s.nombre, subNombre))
           : null
         const prov = provNombre
-          ? proveedores.find(p => p.razon_social.toLowerCase() === provNombre.toLowerCase())
+          ? proveedores.find(p => mismoNombre(p.razon_social, provNombre))
           : null
 
-        const precioCosto = parseFloat(val(mapeo.precio_costo)) || 0
+        const precioCosto = parseNumero(val(mapeo.precio_costo))
 
-        const datos = {
-          nombre,
-          codigo:          val(mapeo.codigo)        || null,
-          codigo_barras:   val(mapeo.codigo_barras) || null,
-          categoria_id:    cat?.id                  || null,
-          subcategoria_id: sub?.id                  || null,
-          precio_costo:    precioCosto,
-          precio_venta:    parseFloat(val(mapeo.precio_venta))  || 0,
-          stock_actual:    parseFloat(val(mapeo.stock_actual))  || 0,
-          stock_minimo:    parseFloat(val(mapeo.stock_minimo))  || 0,
-          controla_stock: true,
-          activo: true,
-        }
+        // Sólo las columnas asignadas: al actualizar, lo no asignado (ej. stock) queda como está
+        const datos = { nombre }
+        if (mapeado('codigo'))        datos.codigo          = val(mapeo.codigo)        || null
+        if (mapeado('codigo_barras')) datos.codigo_barras   = val(mapeo.codigo_barras) || null
+        if (mapeado('categoria'))     datos.categoria_id    = await categoriaId(val(mapeo.categoria))
+        if (mapeado('subcategoria'))  datos.subcategoria_id = sub?.id || null
+        if (mapeado('precio_costo'))  datos.precio_costo    = precioCosto
+        if (mapeado('precio_venta'))  datos.precio_venta    = parseNumero(val(mapeo.precio_venta))
+        if (mapeado('stock_actual'))  datos.stock_actual    = parseNumero(val(mapeo.stock_actual))
+        if (mapeado('stock_minimo'))  datos.stock_minimo    = parseNumero(val(mapeo.stock_minimo))
 
-        // Buscar producto existente por código de barras o código
+        // Buscar producto existente por código de barras, código o nombre
         const existente = productos.find(p =>
           (datos.codigo_barras && p.codigo_barras === datos.codigo_barras) ||
           (datos.codigo && p.codigo === datos.codigo)
-        )
+        ) || productos.find(p => mismoNombre(p.nombre, nombre))
+
+        // La foto se sube sólo si el producto todavía no tiene una
+        if (mapeado('imagen') && !existente?.imagen_url) {
+          const url = await resolverImagen(val(mapeo.imagen))
+          if (url) { datos.imagen_url = url; imagenesSubidas++ }
+        }
 
         let productoId
         if (existente) {
-          const res = await onActualizar(existente.id, { ...existente, ...datos }, existente)
+          // Sin las columnas de joins (categoria/subcategoria) que vienen en `existente`
+          const { precio_costo, precio_venta, precio_mayorista, stock_actual } = existente
+          const res = await onActualizar(existente.id,
+            { precio_costo, precio_venta, precio_mayorista, stock_actual, ...datos }, existente)
           if (res.error) throw new Error(res.error.message)
           productoId = existente.id
           actualizados++
         } else {
-          const res = await onCrear(datos)
+          const res = await onCrear({
+            precio_costo: 0, precio_venta: 0, stock_actual: 0, stock_minimo: 0,
+            ...datos, controla_stock: true, activo: true,
+          })
           if (res.error) throw new Error(res.error.message)
           productoId = res.data.id
           creados++
@@ -191,20 +317,21 @@ export default function ImportarExcel({
           }
         }
       } catch (err) {
-        errores.push(String(err.message || err))
+        errores.push(`${nombre || `Fila ${n + 2}`}: ${err.message || err}`)
       }
     }
 
-    setResult({ creados, actualizados, errores })
+    setResult({ creados, actualizados, categoriasNuevas, imagenesSubidas, errores })
     setPaso(3)
     setImp(false)
+    onImportado?.()
   }
 
   // Columnas del select (vacío + cada encabezado)
   const opcionesCol = [
     <option key="" value="">— No importar —</option>,
     ...headers.map((h, i) => (
-      <option key={i} value={i}>{String.fromCharCode(65 + i)} — {h || `Columna ${i + 1}`}</option>
+      <option key={i} value={i}>{colLetra(i)} — {h || `Columna ${i + 1}`}</option>
     )),
   ]
 
@@ -277,7 +404,7 @@ export default function ImportarExcel({
                   <thead>
                     <tr>
                       {headers.map((h, i) => (
-                        <th key={i}>{String.fromCharCode(65 + i)} — {h}</th>
+                        <th key={i}>{colLetra(i)} — {h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -319,7 +446,52 @@ export default function ImportarExcel({
                   </div>
                 ))}
               </div>
+              <div className="import-hint" style={{ marginTop: 10 }}>
+                <i className="ti ti-info-circle" />
+                <span>
+                  Las categorías que no existan se crean solas. Si un producto ya existe (mismo código o
+                  mismo nombre) se actualiza sólo con las columnas asignadas: lo que dejes en
+                  «No importar» (por ejemplo el stock) no se toca.
+                </span>
+              </div>
             </div>
+
+            {catsArchivo.size > 0 && (
+              <div className="import-hint import-hint--cols">
+                <i className="ti ti-tag" />
+                <span>
+                  Categorías: <strong>{catsExistentes}</strong> coinciden con las que ya tenés
+                  {catsNuevas.length > 0 ? (
+                    <>
+                      {' '}y se van a <strong>crear {catsNuevas.length} nuevas</strong>: {catsNuevas.join(', ')}.
+                      {' '}Si alguna es la misma que ya existe pero escrita distinto (ej. plural), corregila en el
+                      archivo o renombrá la de la app antes de importar.
+                    </>
+                  ) : '.'}
+                </span>
+              </div>
+            )}
+
+            {/* Imágenes que vienen como nombre de archivo (AppSheet): se buscan en una carpeta */}
+            {imgArchivos.length > 0 && (
+              <div className="import-hint import-hint--cols">
+                <i className="ti ti-photo" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span>
+                    La columna de imagen trae nombres de archivo, no las fotos. Elegí la carpeta donde están
+                    (en AppSheet es la carpeta <strong>…_Images</strong> de la app en Google Drive, descargada).
+                    {imagenes.size > 0 && <> <strong>{imgEncontradas} de {imgArchivos.length}</strong> fotos encontradas.</>}
+                  </span>
+                  <button type="button" className="btn" style={{ alignSelf: 'flex-start' }}
+                    onClick={() => imgRef.current?.click()}>
+                    <i className="ti ti-folder" />
+                    {imagenes.size > 0 ? 'Cambiar carpeta' : 'Elegir carpeta de imágenes'}
+                  </button>
+                  <input ref={imgRef} type="file" multiple webkitdirectory="" style={{ display: 'none' }}
+                    onChange={e => elegirImagenes(e.target.files)} />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -339,6 +511,18 @@ export default function ImportarExcel({
                 <i className="ti ti-refresh" />
                 <span><strong>{resultado.actualizados}</strong> productos actualizados</span>
               </div>
+              {resultado.categoriasNuevas > 0 && (
+                <div className="resultado-stat resultado-stat--info">
+                  <i className="ti ti-tag" />
+                  <span><strong>{resultado.categoriasNuevas}</strong> categorías nuevas</span>
+                </div>
+              )}
+              {resultado.imagenesSubidas > 0 && (
+                <div className="resultado-stat resultado-stat--info">
+                  <i className="ti ti-photo" />
+                  <span><strong>{resultado.imagenesSubidas}</strong> fotos cargadas</span>
+                </div>
+              )}
               {resultado.errores.length > 0 && (
                 <div className="resultado-stat resultado-stat--danger">
                   <i className="ti ti-alert-circle" />
@@ -374,7 +558,7 @@ export default function ImportarExcel({
               </button>
               <button className="btn btn--primary" onClick={confirmar} disabled={importando}>
                 <i className={`ti ${importando ? 'ti-loader-2' : 'ti-file-import'}`} />
-                {importando ? 'Importando...' : `Importar ${filas.length} filas`}
+                {importando ? `Importando ${progreso} de ${filas.length}...` : `Importar ${filas.length} filas`}
               </button>
             </>
           )}

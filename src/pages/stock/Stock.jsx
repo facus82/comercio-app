@@ -30,7 +30,7 @@ export default function Stock() {
 
   const {
     productos, categorias, subcategorias, proveedores, centrosCostos,
-    loading, crear, actualizar, actualizarMasivo, toggleActivo,
+    loading, crear, actualizar, actualizarMasivo, toggleActivo, recargar,
     cargarProveedoresProducto, agregarProveedorProducto,
     eliminarProveedorProducto, marcarPrincipalProducto,
   } = useProductos(comercioId, perfil?.id)
@@ -329,6 +329,7 @@ export default function Stock() {
           comercioId={comercioId}
           onCrear={crear}
           onActualizar={actualizar}
+          onImportado={recargar}
           onCerrar={() => setImportando(false)}
         />
       )}
