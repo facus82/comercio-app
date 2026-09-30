@@ -146,6 +146,7 @@ export default function ImportarExcel({
   const [imagenes, setImagenes] = useState(new Map()) // nombre de archivo en minúscula → File
   const [importando, setImp]    = useState(false)
   const [progreso, setProgreso] = useState(0)
+  const [soloActualizar, setSoloActualizar] = useState(false) // p. ej. para agregar sólo las fotos
   const [resultado, setResult]  = useState(null)
 
   // Valores de la columna imagen que no son URL: hay que elegir la carpeta con las fotos
@@ -213,6 +214,7 @@ export default function ImportarExcel({
     setImp(true)
     setProgreso(0)
     let creados = 0, actualizados = 0, categoriasNuevas = 0, imagenesSubidas = 0, errores = []
+    const noEncontrados = []
     const cats = [...categorias]
     const mapeado = campo => mapeo[campo] !== undefined
 
@@ -254,18 +256,20 @@ export default function ImportarExcel({
         const datos = { nombre }
         if (mapeado('codigo'))        datos.codigo          = val(mapeo.codigo)        || null
         if (mapeado('codigo_barras')) datos.codigo_barras   = val(mapeo.codigo_barras) || null
-        if (mapeado('categoria'))     datos.categoria_id    = await categoriaId(val(mapeo.categoria))
-        if (mapeado('subcategoria'))  datos.subcategoria_id = sub?.id || null
-        if (mapeado('precio_costo'))  datos.precio_costo    = precioCosto
-        if (mapeado('precio_venta'))  datos.precio_venta    = parseNumero(val(mapeo.precio_venta))
-        if (mapeado('stock_actual'))  datos.stock_actual    = parseNumero(val(mapeo.stock_actual))
-        if (mapeado('stock_minimo'))  datos.stock_minimo    = parseNumero(val(mapeo.stock_minimo))
 
         // Buscar producto existente por código de barras, código o nombre
         const existente = productos.find(p =>
           (datos.codigo_barras && p.codigo_barras === datos.codigo_barras) ||
           (datos.codigo && p.codigo === datos.codigo)
         ) || productos.find(p => mismoNombre(p.nombre, nombre))
+        if (!existente && soloActualizar) { noEncontrados.push(nombre); continue }
+
+        if (mapeado('categoria'))     datos.categoria_id    = await categoriaId(val(mapeo.categoria))
+        if (mapeado('subcategoria'))  datos.subcategoria_id = sub?.id || null
+        if (mapeado('precio_costo'))  datos.precio_costo    = precioCosto
+        if (mapeado('precio_venta'))  datos.precio_venta    = parseNumero(val(mapeo.precio_venta))
+        if (mapeado('stock_actual'))  datos.stock_actual    = parseNumero(val(mapeo.stock_actual))
+        if (mapeado('stock_minimo'))  datos.stock_minimo    = parseNumero(val(mapeo.stock_minimo))
 
         // La foto se sube sólo si el producto todavía no tiene una
         if (mapeado('imagen') && !existente?.imagen_url) {
@@ -321,7 +325,7 @@ export default function ImportarExcel({
       }
     }
 
-    setResult({ creados, actualizados, categoriasNuevas, imagenesSubidas, errores })
+    setResult({ creados, actualizados, categoriasNuevas, imagenesSubidas, noEncontrados, errores })
     setPaso(3)
     setImp(false)
     onImportado?.()
@@ -454,6 +458,13 @@ export default function ImportarExcel({
                   «No importar» (por ejemplo el stock) no se toca.
                 </span>
               </div>
+              <label className="import-hint" style={{ marginTop: 8, cursor: 'pointer', color: 'var(--color-text-primary)' }}>
+                <input type="checkbox" checked={soloActualizar} onChange={e => setSoloActualizar(e.target.checked)} />
+                <span>
+                  <strong>Sólo actualizar productos que ya existen</strong> (no crear nuevos). Útil para
+                  agregar fotos o precios a lo que ya importaste.
+                </span>
+              </label>
             </div>
 
             {catsArchivo.size > 0 && (
@@ -521,6 +532,15 @@ export default function ImportarExcel({
                 <div className="resultado-stat resultado-stat--info">
                   <i className="ti ti-photo" />
                   <span><strong>{resultado.imagenesSubidas}</strong> fotos cargadas</span>
+                </div>
+              )}
+              {resultado.noEncontrados.length > 0 && (
+                <div className="resultado-stat resultado-stat--danger" title={resultado.noEncontrados.join('\n')}>
+                  <i className="ti ti-search-off" />
+                  <span>
+                    <strong>{resultado.noEncontrados.length}</strong> no encontrados en la app:{' '}
+                    {resultado.noEncontrados.slice(0, 5).join(', ')}{resultado.noEncontrados.length > 5 ? '…' : ''}
+                  </span>
                 </div>
               )}
               {resultado.errores.length > 0 && (
