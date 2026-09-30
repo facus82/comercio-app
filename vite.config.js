@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => ({
         name: 'GestCom - Gestión Comercial',
         short_name: 'GestCom',
         description: 'Sistema de gestión comercial para tu negocio',
-        theme_color: '#6339ff',
+        theme_color: '#1B232D',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',

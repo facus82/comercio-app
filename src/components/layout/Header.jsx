@@ -21,6 +21,8 @@ export default function Header({ onMenuToggle }) {
         >
           <i className="ti ti-menu-2" />
         </button>
+        {/* En celular no hay sidebar: el nombre del comercio va en el encabezado */}
+        <span className="header-comercio">{perfil?.comercio?.nombre_fantasia || perfil?.comercio?.nombre || ''}</span>
       </div>
 
       <div className="header-right">

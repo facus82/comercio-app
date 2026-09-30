@@ -725,3 +725,55 @@
 @media (max-width: 1280px) and (min-width: 1025px) {
   .dash-metrics { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ════ Tema Mostrador: tarjetas con franja de estado arriba e ícono ════ */
+.metric-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  gap: 6px;
+}
+.metric-card::before { display: none; }
+.metric-card--danger  { border-top-color: var(--color-danger); }
+.metric-card--success { border-top-color: var(--color-success); }
+.metric-card--warning { border-top-color: var(--color-warning-500); }
+.metric-card--info    { border-top-color: var(--color-info); }
+
+.metric-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+.metric-ico {
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+  background: var(--color-bg-app); color: var(--color-text-secondary);
+}
+.metric-ico--danger  { background: var(--color-danger-bg);  color: var(--color-danger); }
+.metric-ico--success { background: var(--color-success-bg); color: var(--color-success); }
+.metric-ico--warning { background: var(--color-warning-bg); color: var(--color-warning); }
+.metric-ico--info    { background: var(--color-info-bg);    color: var(--color-info); }
+
+.metric-value {
+  font-family: var(--font-family-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  margin: 2px 0;
+}
+.metric-sub, .metric-nav-label { font-size: 12.5px; }
+.metric-nav-label { white-space: nowrap; }
+
+/* Tarjetas grandes del panel: mismo borde y fondo que el resto */
+.dash-card, .dash-prov-panel { border-radius: 8px; }
+
+@media (max-width: 1024px) {
+  /* 5 tarjetas en 2 columnas: "Ventas del período" (3ª) a todo el ancho → 2 + 1 + 2, sin tarjetas sueltas
+     y con lugar para el nombre del mes */
+  .dash-metrics > :nth-child(3) { grid-column: 1 / -1; }
+}
+@media (max-width: 768px) {
+  .dash-metrics { gap: 10px; }
+  .metric-card { padding: 12px 14px; }
+  .metric-value { font-size: 20px; }
+  .metric-label { font-size: 12.5px; }
+}

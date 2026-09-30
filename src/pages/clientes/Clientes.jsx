@@ -14,7 +14,7 @@ const TIPO_BADGE = {
 }
 
 const fmt$ = v =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2 }).format(v || 0)
 
 export default function Clientes() {
   const { perfil } = useAuth()
@@ -142,7 +142,7 @@ export default function Clientes() {
                       {c.razon_social || `${c.nombre}${c.apellido ? ` ${c.apellido}` : ''}`}
                     </td>
                     <td className="td-mono td-muted">{c.cuit || c.dni || '—'}</td>
-                    <td className="td-muted">{c.telefono || '—'}</td>
+                    <td className="td-muted" style={{ whiteSpace: 'nowrap' }}>{c.telefono || '—'}</td>
                     <td className="td-muted">{c.email || '—'}</td>
                     <td><span className={`badge ${tipo.cls}`}>{tipo.label}</span></td>
                     <td className="td-right" onClick={e => { if (cc) { e.stopPropagation(); setCuentaDe(c) } }}>

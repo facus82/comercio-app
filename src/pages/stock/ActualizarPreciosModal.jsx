@@ -3,7 +3,7 @@ import './ActualizarPreciosModal.css'
 
 const fmt$ = v =>
   new Intl.NumberFormat('es-AR', {
-    style: 'currency', currency: 'ARS', minimumFractionDigits: 0,
+    style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2,
   }).format(v || 0)
 
 function roundPrice(price) {

@@ -12,7 +12,7 @@ import { ProductoThumb } from '../../components/shared/ImagenProducto'
 import './Stock.css'
 
 const fmt$ = v =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2 }).format(v || 0)
 
 function stockBadge(p) {
   const actual = Number(p.stock_actual)
@@ -177,7 +177,7 @@ export default function Stock() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div className="stock-acciones">
           <button className="btn" onClick={() => setImportando(true)}>
             <i className="ti ti-file-import" />
             Importar Excel

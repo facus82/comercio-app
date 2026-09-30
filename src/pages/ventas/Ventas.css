@@ -1374,3 +1374,19 @@
   transition: background var(--transition-fast);
 }
 .pos-btn-camara:hover { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+
+/* ════ Tema Mostrador: precios y totales en tipografía de caja registradora ════ */
+.pos-dd-precio, .pos-dd-precio-old, .carrito-item-unitario, .carrito-item-precio-old,
+.carrito-item-sub, .total-row > span:last-child, .pos-mobile-bar-info strong,
+.pos-vuelto strong, .qty-val {
+  font-family: var(--font-family-num);
+  font-variant-numeric: tabular-nums;
+}
+.pos-dd-nombre, .carrito-item-nombre { font-size: 14.5px; }
+.pos-search-input { font-size: 16px; }
+.pos-search-box { border-radius: 8px; }
+.pos-carrito, .pos-right { border-radius: 8px; border-width: 1px; background: var(--color-bg-card); }
+.total-row { font-size: 13.5px; }
+.total-row--total > span:last-child { letter-spacing: -.02em; }
+.pos-btn-cobrar { border-radius: 8px !important; }
+.pos-btn-cobrar:not(:disabled) { box-shadow: none; }

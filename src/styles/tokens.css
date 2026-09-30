@@ -1,25 +1,25 @@
 :root {
   /* ── Paleta base — success ── */
-  --color-success-50:  #D1FAE5;
-  --color-success-100: #A7F3D0;
-  --color-success-500: #10B981;
-  --color-success-600: #059669;
-  --color-success-700: #047857;
+  --color-success-50:  #DDF2EA;
+  --color-success-100: #B7E4D1;
+  --color-success-500: #17A673;
+  --color-success-600: #0F7A55;
+  --color-success-700: #0B6345;
 
   /* ── Paleta base — warning ── */
-  --color-warning-50:  #FEF3C7;
-  --color-warning-100: #FDE68A;
-  --color-warning-500: #F59E0B;
-  --color-warning-600: #D97706;
-  --color-warning-700: #B45309;
+  --color-warning-50:  #FCEBCF;
+  --color-warning-100: #F8D9A3;
+  --color-warning-500: #D98A0B;
+  --color-warning-600: #A15C00;
+  --color-warning-700: #804900;
 
   /* ── Paleta base — danger ── */
-  --color-danger-50:  #FEE2E2;
-  --color-danger-100: #FECACA;
-  --color-danger-300: #FCA5A5;
-  --color-danger-500: #EF4444;
-  --color-danger-600: #DC2626;
-  --color-danger-700: #B91C1C;
+  --color-danger-50:  #FBE1E1;
+  --color-danger-100: #F5C2C2;
+  --color-danger-300: #EB9A9A;
+  --color-danger-500: #DE4040;
+  --color-danger-600: #C52A2A;
+  --color-danger-700: #A11F1F;
 
   /* ── Paleta base — info / primary ── */
   --color-primary-50:  #DBEAFE;
@@ -47,39 +47,41 @@
   --color-neutral-900: #111827;
 
   /* ── Sidebar oscuro ── */
-  --sidebar-bg:                 #0F172A;
-  --sidebar-text:               #94A3B8;
-  --sidebar-text-active:        #F1F5F9;
-  --sidebar-item-active-bg:     #1E293B;
-  --sidebar-item-active-border: #6366F1;
-  --sidebar-section:            #334155;
+  --sidebar-bg:                 #1B232D;
+  --sidebar-text:               #9AA6B4;
+  --sidebar-text-active:        #FFFFFF;
+  --sidebar-item-active-bg:     #0F7A55;
+  --sidebar-item-active-border: #22C38A;
+  --sidebar-section:            #6B7888;
 
   /* ── Sistema de diseño — nuevos tokens ── */
-  --color-bg-app:       #F8FAFC;
+  --color-bg-app:       #EEF1F4;
   --color-bg-card:      #FFFFFF;
-  --color-border:       #E2E8F0;
-  --color-border-input: #CBD5E1;
+  --color-border:       #D9DEE5;
+  --color-border-input: #C3CAD3;
 
-  --color-text-primary:   #0F172A;
-  --color-text-secondary: #64748B;
-  --color-text-tertiary:  #94A3B8;
+  --color-text-primary:   #121820;
+  --color-text-secondary: #56606E;
+  --color-text-tertiary:  #8A94A2;
 
-  --color-accent:       #6366F1;
-  --color-accent-hover: #4F46E5;
+  --color-accent:       #0F7A55;
+  --color-accent-hover: #0B6345;
 
-  --color-success:    #10B981;
-  --color-success-bg: #D1FAE5;
-  --color-danger:     #EF4444;
-  --color-danger-bg:  #FEE2E2;
-  --color-warning:    #F59E0B;
-  --color-warning-bg: #FEF3C7;
-  --color-info:       #3B82F6;
-  --color-info-bg:    #DBEAFE;
+  --color-success:    #0F7A55;
+  --color-success-bg: #DDF2EA;
+  --color-danger:     #C52A2A;
+  --color-danger-bg:  #FBE1E1;
+  --color-warning:    #A15C00;
+  --color-warning-bg: #FCEBCF;
+  --color-info:       #2F5F98;
+  --color-info-bg:    #E2ECF7;
 
   /* ── Aliases de compatibilidad (usados en componentes existentes) ── */
   --color-bg:               var(--color-bg-app);
   --color-bg-primary:       var(--color-bg-card);
-  --color-bg-secondary:     var(--color-bg-app);
+  /* Superficie secundaria: casi blanca (tarjetas y hovers). Antes era un alias del fondo de página;
+     con el fondo gris del tema Mostrador las tarjetas quedaban del mismo color que el fondo. */
+  --color-bg-secondary:     #F8F9FB;
   --color-bg-surface:       var(--color-bg-card);
   --color-bg-elevated:      var(--color-bg-card);
   --color-border-primary:   var(--color-accent);
@@ -96,9 +98,11 @@
   --color-text-info:        var(--color-info);
 
   /* ── Tipografía ── */
-  --font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-family-ui:   'Inter', system-ui, -apple-system, sans-serif;
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-family-base: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-ui:   'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+  /* Montos en tipografía de caja registradora */
+  --font-family-num:  'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
 
   --font-size-xs:   0.75rem;
   --font-size-sm:   0.875rem;

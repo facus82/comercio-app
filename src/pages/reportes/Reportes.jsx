@@ -4,7 +4,7 @@ import { useReportes } from '../../hooks/useReportes'
 import './Reportes.css'
 
 const fmt$ = v =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2 }).format(v || 0)
 
 const fmtFecha = str => {
   if (!str) return '—'

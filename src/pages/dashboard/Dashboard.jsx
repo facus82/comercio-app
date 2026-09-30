@@ -19,15 +19,15 @@ const MEDIOS_MAP = {
 
 /* ── Helpers ─────────────────────────────── */
 const fmt$ = v =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2 }).format(v || 0)
 
 const fmtFecha = d =>
   d ? new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(d + 'T12:00:00')) : '—'
 
 function fmtPeriodo({ year, month }) {
-  const s = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' })
-    .format(new Date(year, month, 1))
-  return s.charAt(0).toUpperCase() + s.slice(1)
+  // 'Septiembre 2026' (sin 'de') para que entre en la tarjeta en celular
+  const mes = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(new Date(year, month, 1))
+  return `${mes.charAt(0).toUpperCase() + mes.slice(1)} ${year}`
 }
 
 function diasRestantes(fechaStr) {
@@ -401,6 +401,7 @@ export default function Dashboard() {
       <div className="dash-metrics">
         <MetricCard
           label="Vencimientos de stock"
+          icon="ti-calendar-exclamation"
           value={datos.vencimientosCount}
           sub="lotes en los próximos 30 días"
           colorClass="danger"
@@ -410,6 +411,7 @@ export default function Dashboard() {
         />
         <MetricCard
           label="Stock bajo mínimo"
+          icon="ti-package"
           value={datos.stockBajoCount}
           sub="productos por reponer"
           colorClass="danger"
@@ -419,6 +421,7 @@ export default function Dashboard() {
         />
         <MetricCard
           label="Ventas del período"
+          icon="ti-trending-up"
           value={fmt$(ventasPeriodo)}
           colorClass="success"
           loading={loadingVentas}
@@ -431,6 +434,7 @@ export default function Dashboard() {
         />
         <MetricCard
           label="A pagar proveedores"
+          icon="ti-truck"
           value={fmt$(datos.pagarProveedores)}
           sub={`${datos.proveedoresPendientes.length} proveedor${datos.proveedoresPendientes.length !== 1 ? 'es' : ''}`}
           colorClass="warning"
@@ -442,6 +446,7 @@ export default function Dashboard() {
         />
         <MetricCard
           label="A cobrar Cta. Cte."
+          icon="ti-notebook"
           value={fmt$(datos.cobrar.total)}
           sub={
             datos.cobrar.vencido > 0
@@ -791,7 +796,7 @@ export default function Dashboard() {
      ref    = forwarded ref (para click-outside)
 ──────────────────────────────────────────── */
 const MetricCard = forwardRef(function MetricCard(
-  { label, value, sub, colorClass, loading, to, onClick, hint, nav, active },
+  { label, icon, value, sub, colorClass, loading, to, onClick, hint, nav, active },
   ref
 ) {
   const isInteractive = !!(to || onClick)
@@ -804,7 +809,10 @@ const MetricCard = forwardRef(function MetricCard(
 
   const body = (
     <>
-      <span className="metric-label">{label}</span>
+      <span className="metric-label">
+        {icon && <span className={`metric-ico metric-ico--${colorClass}`}><i className={`ti ${icon}`} /></span>}
+        {label}
+      </span>
       <span className={`metric-value metric-value--${colorClass}${loading ? ' metric-value--loading' : ''}`}>
         {value}
       </span>

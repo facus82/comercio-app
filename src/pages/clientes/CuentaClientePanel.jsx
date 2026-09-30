@@ -17,7 +17,7 @@ const MEDIOS = [
 const MEDIO_LABEL = Object.fromEntries(MEDIOS.map(m => [m.value, m.label]))
 
 const fmt$ = v =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2 }).format(v || 0)
 
 const fmtFecha = d =>
   d ? new Date(d.length === 10 ? d + 'T12:00:00' : d).toLocaleDateString('es-AR') : '—'

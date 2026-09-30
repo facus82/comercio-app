@@ -158,3 +158,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ════ Tema Mostrador: acciones del listado ════ */
+.stock-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 768px) {
+  /* En celular: botones en grilla de 2, a lo ancho, sin cortarse */
+  .stock-acciones { display: grid; grid-template-columns: 1fr 1fr; }
+  .stock-page .stock-acciones .btn { justify-content: center; font-size: 13px; white-space: normal; text-align: center; line-height: 1.2; }
+  .stock-acciones .btn--primary { grid-column: 1 / -1; }
+}

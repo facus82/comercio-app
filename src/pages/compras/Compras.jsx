@@ -7,7 +7,7 @@ import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import './Compras.css'
 
 const fmt$ = v =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(v || 0)
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: Number.isInteger(Number(v) || 0) ? 0 : 2, maximumFractionDigits: 2 }).format(v || 0)
 
 const ESTADOS = ['pendiente', 'pagada', 'parcial', 'anulada']
 

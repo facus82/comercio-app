@@ -105,3 +105,25 @@
     display: none;
   }
 }
+
+/* ════ Tema Mostrador ════ */
+.header-left { display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: auto; }
+.header-comercio { display: none; }
+.header-avatar { width: 32px; height: 32px; font-size: 12px; background: var(--color-success-bg); color: var(--color-success-700); }
+.header-user-name { font-size: 13.5px; }
+.header-user-rol  { font-size: 11.5px; }
+.header-logout { width: 36px; height: 36px; border-width: 1px; border-radius: 8px; }
+
+@media (max-width: 768px) {
+  .app-header { padding: 0 var(--space-4); }
+  .header-comercio {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .header-logout { width: 40px; height: 40px; }
+}
