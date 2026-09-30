@@ -281,3 +281,9 @@
   font-size: 11px;
   color: var(--color-text-secondary);
 }
+
+/* Celular: la tabla de pendientes no entra entera → ocultar "Monto" y dejar "Resta" (lo que importa) */
+@media (max-width: 600px) {
+  .ccli-table th:nth-child(3),
+  .ccli-table td:nth-child(3) { display: none; }
+}

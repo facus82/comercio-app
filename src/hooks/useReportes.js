@@ -1,4 +1,26 @@
 import { supabase } from '../lib/supabase'
+import { cargarDeudas, resumirPorCliente } from './useCuentasCobrar'
+
+/* 'YYYY-MM-DD' (día local) → límites ISO del día en hora de Argentina.
+   ventas.fecha es timestamptz: comparar contra '2026-09-29' a secas corta en la
+   medianoche UTC y deja afuera las ventas del día. */
+const inicioDia = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd, 0, 0, 0, 0).toISOString() }
+const finDia    = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd, 23, 59, 59, 999).toISOString() }
+const diaLocal  = iso => { const f = new Date(iso); return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}` }
+
+// Todos los días del rango (para que el gráfico muestre también los días sin ventas)
+export function diasDelRango(desde, hasta) {
+  const out = []
+  const [y, m, d] = desde.split('-').map(Number)
+  const cur = new Date(y, m - 1, d)
+  const [y2, m2, d2] = hasta.split('-').map(Number)
+  const fin = new Date(y2, m2 - 1, d2)
+  while (cur <= fin && out.length < 400) {
+    out.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`)
+    cur.setDate(cur.getDate() + 1)
+  }
+  return out
+}
 
 export function useReportes(comercioId) {
 
@@ -10,13 +32,13 @@ export function useReportes(comercioId) {
       .select('id, fecha, total')
       .eq('comercio_id', comercioId)
       .eq('estado', 'completada')
-      .gte('fecha', desde)
-      .lte('fecha', hasta)
+      .gte('fecha', inicioDia(desde))
+      .lte('fecha', finDia(hasta))
       .order('fecha', { ascending: false })
 
     if (error) throw new Error(error.message)
     if (!ventas?.length) {
-      return { ventasPorDia: [], topProductos: [], porMedioPago: {}, totalVentas: 0, cantTickets: 0, ticketPromedio: 0, margenBruto: 0 }
+      return { ventasPorDia: [], topProductos: [], porMedioPago: {}, totalVentas: 0, cantTickets: 0, ticketPromedio: 0, margenBruto: 0, sinCosto: 0 }
     }
 
     const ids = ventas.map(v => v.id)
@@ -48,12 +70,13 @@ export function useReportes(comercioId) {
     })
     const topProductos = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 10)
 
-    // Ventas por día
+    // Ventas por día (día local, no la marca de tiempo completa)
     const porDia = {}
     ventas.forEach(v => {
-      if (!porDia[v.fecha]) porDia[v.fecha] = { fecha: v.fecha, cant: 0, total: 0 }
-      porDia[v.fecha].cant++
-      porDia[v.fecha].total += Number(v.total)
+      const dia = diaLocal(v.fecha)
+      if (!porDia[dia]) porDia[dia] = { fecha: dia, cant: 0, total: 0 }
+      porDia[dia].cant++
+      porDia[dia].total += Number(v.total)
     })
     const ventasPorDia = Object.values(porDia).sort((a, b) => b.fecha.localeCompare(a.fecha))
 
@@ -61,7 +84,10 @@ export function useReportes(comercioId) {
     const costoEstimado = items?.reduce((s, it) => s + Number(it.cantidad) * Number(it.producto?.precio_costo || 0), 0) || 0
     const margenBruto   = totalVentas - costoEstimado
 
-    return { ventasPorDia, topProductos, porMedioPago, totalVentas, cantTickets, ticketPromedio, margenBruto }
+    // Productos vendidos sin costo cargado: inflan el margen, hay que avisarlo
+    const sinCosto = new Set((items || []).filter(it => it.producto_id && !Number(it.producto?.precio_costo)).map(it => it.producto_id)).size
+
+    return { ventasPorDia, topProductos, porMedioPago, totalVentas, cantTickets, ticketPromedio, margenBruto, sinCosto }
   }
 
   async function cargarStock() {
@@ -125,5 +151,76 @@ export function useReportes(comercioId) {
     return { compras, porProveedor, totalComprado, cantCompras: compras.length }
   }
 
-  return { cargarVentas, cargarStock, cargarCompras }
+  /* Sólo totales, para comparar con el período anterior */
+  async function cargarTotalesVentas(desde, hasta) {
+    if (!comercioId) return null
+    const { data, error } = await supabase
+      .from('ventas')
+      .select('total')
+      .eq('comercio_id', comercioId)
+      .eq('estado', 'completada')
+      .gte('fecha', inicioDia(desde))
+      .lte('fecha', finDia(hasta))
+    if (error) throw new Error(error.message)
+    const total = (data || []).reduce((s, v) => s + Number(v.total), 0)
+    const cant  = (data || []).length
+    return { totalVentas: total, cantTickets: cant, ticketPromedio: cant ? total / cant : 0 }
+  }
+
+  /* Cuentas corrientes: deuda actual por antigüedad + movimiento del período */
+  async function cargarCuentas(desde, hasta) {
+    if (!comercioId) return null
+    const [resDeudas, resCobros, resVentasCC] = await Promise.all([
+      cargarDeudas(comercioId),
+      supabase.from('clientes_cobros')
+        .select('monto, medio_pago, fecha, cliente:clientes(nombre, apellido, razon_social)')
+        .eq('comercio_id', comercioId)
+        .gte('fecha', desde)
+        .lte('fecha', hasta)
+        .order('fecha', { ascending: false }),
+      supabase.from('ventas')
+        .select('cc_monto')
+        .eq('comercio_id', comercioId)
+        .eq('estado', 'completada')
+        .gt('cc_monto', 0)
+        .gte('fecha', inicioDia(desde))
+        .lte('fecha', finDia(hasta)),
+    ])
+    if (resDeudas.error) throw new Error(resDeudas.error.message)
+    if (resCobros.error) throw new Error(resCobros.error.message)
+
+    // Antigüedad según días de atraso de cada venta pendiente
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+    const tramos = [
+      { id: 'al_dia', label: 'Al día',          total: 0, cant: 0 },
+      { id: 'd1_30',  label: '1 a 30 días',     total: 0, cant: 0 },
+      { id: 'd31_60', label: '31 a 60 días',    total: 0, cant: 0 },
+      { id: 'd60',    label: 'Más de 60 días',  total: 0, cant: 0 },
+    ]
+    resDeudas.data.forEach(v => {
+      const atraso = v.fecha_vencimiento
+        ? Math.round((hoy - new Date(v.fecha_vencimiento + 'T00:00:00')) / 86400000)
+        : 0
+      const t = atraso <= 0 ? tramos[0] : atraso <= 30 ? tramos[1] : atraso <= 60 ? tramos[2] : tramos[3]
+      t.total += v.pendiente
+      t.cant  += 1
+    })
+
+    const cobros       = resCobros.data || []
+    const totalCobrado = cobros.reduce((s, c) => s + Number(c.monto), 0)
+    const vendidoCC    = (resVentasCC.data || []).reduce((s, v) => s + Number(v.cc_monto), 0)
+    const clientes     = resumirPorCliente(resDeudas.data)
+
+    return {
+      tramos,
+      totalDeuda:   tramos.reduce((s, t) => s + t.total, 0),
+      totalVencido: tramos.slice(1).reduce((s, t) => s + t.total, 0),
+      clientes,
+      cobros,
+      totalCobrado,
+      vendidoCC,
+    }
+  }
+
+  return { cargarVentas, cargarTotalesVentas, cargarStock, cargarCompras, cargarCuentas }
 }

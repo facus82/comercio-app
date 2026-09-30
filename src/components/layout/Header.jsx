@@ -1,9 +1,11 @@
 import { useAuth } from '../../hooks/useAuth'
 import { Icon } from '../../lib/icons'
+import { useTema, TEMA_INFO } from '../../hooks/useTema'
 import './Header.css'
 
 export default function Header({ onMenuToggle }) {
   const { perfil, signOut } = useAuth()
+  const { tema, siguiente } = useTema()
 
   const iniciales = perfil
     ? `${perfil.nombre?.[0] ?? ''}${perfil.apellido?.[0] ?? ''}`.toUpperCase() || 'U'
@@ -26,6 +28,16 @@ export default function Header({ onMenuToggle }) {
       </div>
 
       <div className="header-right">
+        <button
+          className="header-tema"
+          onClick={siguiente}
+          title={`${TEMA_INFO[tema].label} — tocá para cambiar`}
+          aria-label={TEMA_INFO[tema].label}
+          type="button"
+        >
+          <i className={`ti ${TEMA_INFO[tema].icon}`} />
+        </button>
+
         <div className="header-user">
           <div className="header-avatar">{iniciales}</div>
           <div className="header-user-info">

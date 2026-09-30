@@ -74,12 +74,12 @@
   letter-spacing: -0.5px;
 }
 
-.gestcom-gest { color: #0F172A; }
+.gestcom-gest { color: var(--color-text-primary); }
 .gestcom-com  { color: #E11D48; }
 
 .gestcom-sub {
   font-size: 11px;
-  color: #94A3B8;
+  color: var(--color-text-tertiary);
   letter-spacing: 1.5px;
   text-transform: uppercase;
   margin: 0;

@@ -10,6 +10,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="GestCom" />
     <meta name="theme-color" content="#1B232D" />
+    <!-- Aplica el tema guardado antes de pintar (evita destello blanco en modo oscuro) -->
+    <script>
+      try { var t = localStorage.getItem('gestcom-tema'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t) } catch (e) {}
+    </script>
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

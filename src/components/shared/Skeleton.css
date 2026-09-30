@@ -9,7 +9,7 @@
   background: linear-gradient(
     90deg,
     var(--color-border) 25%,
-    color-mix(in srgb, var(--color-border) 40%, white) 50%,
+    color-mix(in srgb, var(--color-border) 40%, var(--color-bg-card)) 50%,
     var(--color-border) 75%
   );
   background-size: 800px 100%;
@@ -26,7 +26,7 @@
   background: linear-gradient(
     90deg,
     var(--color-border) 25%,
-    color-mix(in srgb, var(--color-border) 40%, white) 50%,
+    color-mix(in srgb, var(--color-border) 40%, var(--color-bg-card)) 50%,
     var(--color-border) 75%
   );
   background-size: 800px 100%;
