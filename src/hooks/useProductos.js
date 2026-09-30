@@ -246,8 +246,33 @@ export function useProductos(comercioId, perfilId) {
     return {}
   }
 
+  // Alta rápida desde el formulario de producto
+  async function crearCategoria(nombre) {
+    const { data, error } = await supabase
+      .from('categorias')
+      .insert({ nombre: nombre.trim(), color: '#3b82f6', comercio_id: comercioId })
+      .select('id, nombre, color')
+      .single()
+    if (error) return { error }
+    setCategorias(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+    return { data }
+  }
+
+  async function crearSubcategoria(categoriaId, nombre) {
+    const { data, error } = await supabase
+      .from('subcategorias')
+      .insert({ nombre: nombre.trim(), categoria_id: categoriaId, comercio_id: comercioId })
+      .select('id, nombre, categoria_id')
+      .single()
+    if (error) return { error }
+    setSubcategorias(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+    return { data }
+  }
+
   return {
     productos,
+    crearCategoria,
+    crearSubcategoria,
     categorias,
     subcategorias,
     proveedores,

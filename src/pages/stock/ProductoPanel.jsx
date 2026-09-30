@@ -201,9 +201,68 @@ function ProveedoresSection({ productoId, proveedores, cargar, onAgregar, onElim
   )
 }
 
+// ── Select con alta rápida ("+ Nueva…") ───────────────────────
+const NUEVA = '__nueva__'
+
+function SelectConCrear({ value, onChange, opciones, vacio, labelNueva, onCrear }) {
+  const [creando, setCreando] = useState(false)
+  const [nombre, setNombre]   = useState('')
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+
+  function cancelar() { setCreando(false); setNombre(''); setError('') }
+
+  async function guardar() {
+    const n = nombre.trim()
+    if (!n) return
+    const existente = opciones.find(o => o.nombre.toLowerCase() === n.toLowerCase())
+    if (existente) { onChange(existente.id); cancelar(); return }
+    setSaving(true)
+    const { data, error: err } = await onCrear(n)
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    onChange(data.id)
+    cancelar()
+  }
+
+  if (creando) {
+    return (
+      <>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input className="field-input" style={{ flex: 1 }} autoFocus
+            placeholder={labelNueva} value={nombre}
+            onChange={e => setNombre(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter')  { e.preventDefault(); guardar() }
+              if (e.key === 'Escape') { e.preventDefault(); cancelar() }
+            }} />
+          <button type="button" className="btn btn--primary" onClick={guardar}
+            disabled={!nombre.trim() || saving} title="Guardar">
+            <i className={`ti ${saving ? 'ti-loader-2' : 'ti-check'}`} />
+          </button>
+          <button type="button" className="btn-icon" onClick={cancelar} title="Cancelar">
+            <i className="ti ti-x" />
+          </button>
+        </div>
+        {error && <span className="field-error">{error}</span>}
+      </>
+    )
+  }
+
+  return (
+    <select className="field-select" value={value}
+      onChange={e => e.target.value === NUEVA ? setCreando(true) : onChange(e.target.value)}>
+      <option value="">{vacio}</option>
+      {opciones.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+      <option value={NUEVA}>+ {labelNueva}…</option>
+    </select>
+  )
+}
+
 export default function ProductoPanel({
   producto, categorias, subcategorias = [], proveedores, centrosCostos,
   onCrear, onActualizar, onCerrar, onCreado,
+  crearCategoria, crearSubcategoria,
   cargarProveedoresProducto, agregarProveedorProducto,
   eliminarProveedorProducto, marcarPrincipalProducto,
 }) {
@@ -592,23 +651,19 @@ export default function ProductoPanel({
                 <div className="form-grid">
                   <div className="field">
                     <label className="field-label">Categoría</label>
-                    <select className="field-select" value={form.categoria_id}
-                      onChange={e => { setF('categoria_id', e.target.value); setF('subcategoria_id', '') }}>
-                      <option value="">Sin categoría</option>
-                      {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
+                    <SelectConCrear value={form.categoria_id}
+                      onChange={id => { setF('categoria_id', id); setF('subcategoria_id', '') }}
+                      opciones={categorias} vacio="Sin categoría" labelNueva="Nueva categoría"
+                      onCrear={crearCategoria} />
                   </div>
                   {form.categoria_id && (
                     <div className="field">
                       <label className="field-label">Subcategoría</label>
-                      <select className="field-select" value={form.subcategoria_id}
-                        onChange={e => setF('subcategoria_id', e.target.value)}>
-                        <option value="">Sin subcategoría</option>
-                        {subcategorias
-                          .filter(s => s.categoria_id === form.categoria_id)
-                          .map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)
-                        }
-                      </select>
+                      <SelectConCrear key={form.categoria_id} value={form.subcategoria_id}
+                        onChange={id => setF('subcategoria_id', id)}
+                        opciones={subcategorias.filter(s => s.categoria_id === form.categoria_id)}
+                        vacio="Sin subcategoría" labelNueva="Nueva subcategoría"
+                        onCrear={nombre => crearSubcategoria(form.categoria_id, nombre)} />
                     </div>
                   )}
                   <div className="field">

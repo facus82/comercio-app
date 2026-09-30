@@ -33,6 +33,7 @@ export default function Stock() {
     loading, crear, actualizar, actualizarMasivo, toggleActivo, recargar,
     cargarProveedoresProducto, agregarProveedorProducto,
     eliminarProveedorProducto, marcarPrincipalProducto,
+    crearCategoria, crearSubcategoria,
   } = useProductos(comercioId, perfil?.id)
 
   const [busqueda,          setBusqueda]          = useState('')
@@ -99,6 +100,8 @@ export default function Stock() {
           onActualizar={actualizar}
           onCerrar={cerrar}
           onCreado={handleCreado}
+          crearCategoria={crearCategoria}
+          crearSubcategoria={crearSubcategoria}
           cargarProveedoresProducto={cargarProveedoresProducto}
           agregarProveedorProducto={agregarProveedorProducto}
           eliminarProveedorProducto={eliminarProveedorProducto}
