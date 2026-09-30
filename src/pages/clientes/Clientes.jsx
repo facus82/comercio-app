@@ -5,6 +5,7 @@ import { useClientes } from '../../hooks/useClientes'
 import { cargarDeudas, resumirPorCliente } from '../../hooks/useCuentasCobrar'
 import ClientePanel from './ClientePanel'
 import CuentaClientePanel from './CuentaClientePanel'
+import ImportarClientes from './ImportarClientes'
 import './Clientes.css'
 
 const TIPO_BADGE = {
@@ -20,7 +21,7 @@ export default function Clientes() {
   const { perfil } = useAuth()
   const comercioId = perfil?.comercio?.id
 
-  const { clientes, loading, crear, actualizar, toggleActivo } = useClientes(comercioId)
+  const { clientes, loading, crear, actualizar, toggleActivo, recargar } = useClientes(comercioId)
 
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroTipo,   setFiltroTipo]   = useState(null)
@@ -29,6 +30,7 @@ export default function Clientes() {
   const [editando,     setEditando]     = useState(null)
   const [soloDeuda,    setSoloDeuda]    = useState(false)
   const [cuentaDe,     setCuentaDe]     = useState(null)   // cliente con panel de Cta. Cte. abierto
+  const [importando,   setImportando]   = useState(false)
 
   /* Saldos de Cta. Cte. por cliente */
   const [saldos, setSaldos] = useState({})   // { [clienteId]: { saldo, vencido, diasAtraso } }
@@ -99,9 +101,14 @@ export default function Clientes() {
             </button>
           </div>
         </div>
-        <button className="btn btn--primary" onClick={abrirNuevo}>
-          <i className="ti ti-plus" /> Nuevo cliente
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => setImportando(true)} title="Importar clientes y saldos desde Excel">
+            <i className="ti ti-file-import" /> Importar
+          </button>
+          <button className="btn btn--primary" onClick={abrirNuevo}>
+            <i className="ti ti-plus" /> Nuevo cliente
+          </button>
+        </div>
       </div>
 
       <div className="table-wrap">
@@ -195,6 +202,16 @@ export default function Clientes() {
           onCrear={crear}
           onActualizar={actualizar}
           onCerrar={cerrar}
+        />
+      )}
+
+      {importando && (
+        <ImportarClientes
+          clientes={clientes}
+          comercioId={comercioId}
+          usuarioId={perfil?.id}
+          onImportado={() => { recargar(); cargarSaldos() }}
+          onCerrar={() => setImportando(false)}
         />
       )}
 

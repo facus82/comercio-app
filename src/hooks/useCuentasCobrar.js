@@ -90,7 +90,7 @@ export async function cargarCobros(clienteId) {
 export async function cargarVentasCC(comercioId, clienteId) {
   const { data, error } = await supabase
     .from('ventas')
-    .select('id, numero, fecha, estado, total, recargo_monto, notas, cc_monto, cc_pagado, fecha_vencimiento, items:venta_items(descripcion, cantidad, subtotal)')
+    .select('id, numero, fecha, estado, total, recargo_monto, notas, es_saldo_inicial, cc_monto, cc_pagado, fecha_vencimiento, items:venta_items(descripcion, cantidad, subtotal)')
     .eq('comercio_id', comercioId)
     .eq('cliente_id', clienteId)
     .gt('cc_monto', 0)
@@ -124,6 +124,42 @@ export function armarHistorial(ventasCC, cobros) {
       : null
     return { venta: v, pendiente, movimientos, canceladaEl }
   })
+}
+
+/* Saldo inicial: deuda traída de otro sistema. Se guarda como venta sin ítems a Cta. Cte.
+   marcada es_saldo_inicial (no suma en reportes de ventas ni en caja). */
+export async function crearSaldoInicial({ comercioId, clienteId, usuarioId, monto, fecha, vencimiento, notas }) {
+  const m = +Number(monto).toFixed(2)
+  const sufijo = Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase()
+  const { data, error } = await supabase
+    .from('ventas')
+    .insert({
+      comercio_id:       comercioId,
+      cliente_id:        clienteId,
+      usuario_id:        usuarioId || null,
+      numero:            `SI-${sufijo}`,
+      fecha:             `${fecha || hoyISO()}T12:00:00-03:00`,
+      subtotal:          m,
+      total:             m,
+      cc_monto:          m,
+      fecha_vencimiento: vencimiento || null,
+      notas:             notas?.trim() || 'Saldo inicial',
+      es_saldo_inicial:  true,
+    })
+    .select('id')
+    .single()
+  return { data, error }
+}
+
+/* Sólo si todavía no tiene cobros aplicados (para corregir una carga equivocada) */
+export async function anularSaldoInicial(ventaId) {
+  const { error } = await supabase
+    .from('ventas')
+    .update({ estado: 'anulada' })
+    .eq('id', ventaId)
+    .eq('es_saldo_inicial', true)
+    .eq('cc_pagado', 0)
+  return { error }
 }
 
 export async function registrarCobro({ clienteId, monto, medioPago, fecha, referencia, notas }) {

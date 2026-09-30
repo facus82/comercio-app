@@ -74,6 +74,7 @@ function PosCajaContenido({ perfil }) {
       .select('total')
       .eq('comercio_id', comercioId)
       .eq('estado', 'completada')
+      .eq('es_saldo_inicial', false)
       .gte('fecha', caja.fecha_apertura)
     setStats({ cant: (data || []).length, total: (data || []).reduce((s, v) => s + Number(v.total), 0) })
   }, [caja, comercioId])

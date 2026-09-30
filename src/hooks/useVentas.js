@@ -18,6 +18,7 @@ export function useVentas(comercioId, perfilId, fecha) {
       .from('ventas')
       .select('*, cliente:clientes(id, nombre, apellido), pagos:venta_pagos(medio_pago, monto)')
       .eq('comercio_id', comercioId)
+      .eq('es_saldo_inicial', false)
       .order('fecha', { ascending: false })
       .limit(500)
 

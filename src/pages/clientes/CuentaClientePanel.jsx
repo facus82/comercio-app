@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../../hooks/useToast'
+import { useAuth } from '../../hooks/useAuth'
 import {
   cargarVentasCC, cargarCobros, registrarCobro, armarHistorial,
-  diasHasta, hoyISO, nombreCliente, linkWhatsApp,
+  crearSaldoInicial, anularSaldoInicial, diasHasta, hoyISO, sumarDias, nombreCliente, linkWhatsApp,
 } from '../../hooks/useCuentasCobrar'
 import './CuentaCliente.css'
 
@@ -31,8 +32,12 @@ export function VtoBadge({ fecha }) {
   return <span className="badge badge--neutral">Vence {fmtFecha(fecha)}</span>
 }
 
+// Número a mostrar: los saldos iniciales no tienen número de venta real
+const etiquetaVenta = v => v.es_saldo_inicial ? 'Saldo inicial' : v.numero
+
 export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCambio }) {
   const toast = useToast()
+  const { perfil } = useAuth()
   const [ventasCC, setVentasCC] = useState([])
   const [cobros,   setCobros]   = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -42,6 +47,14 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
   const [form,   setForm]   = useState({ monto: '', medio: 'efectivo', fecha: hoyISO(), referencia: '' })
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
+
+  // Saldo inicial (deuda traída de otro sistema)
+  const plazo = Number(cliente.plazo_dias) || 30
+  const siVacio = () => ({ monto: '', fecha: hoyISO(), vencimiento: sumarDias(plazo), notas: '' })
+  const [showSI,   setShowSI]   = useState(false)
+  const [formSI,   setFormSI]   = useState(siVacio)
+  const [savingSI, setSavingSI] = useState(false)
+  const [errorSI,  setErrorSI]  = useState('')
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -89,6 +102,42 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
     if (error) { setError(error.message || 'Error al registrar el cobro.'); return }
     toast?.success(`Cobro de ${fmt$(montoNum)} registrado`)
     setForm(p => ({ ...p, monto: '', referencia: '' }))
+    await cargar()
+    onCambio?.()
+  }
+
+  function setSI(k, v) {
+    setFormSI(p => {
+      const n = { ...p, [k]: v }
+      // Al cambiar la fecha de la deuda, el vencimiento sugerido se corre con ella
+      if (k === 'fecha' && v && p.vencimiento === sumarDias(plazo, new Date(p.fecha + 'T12:00:00'))) {
+        n.vencimiento = sumarDias(plazo, new Date(v + 'T12:00:00'))
+      }
+      return n
+    })
+  }
+
+  async function handleSaldoInicial(e) {
+    e.preventDefault()
+    const monto = Number(formSI.monto) || 0
+    if (monto <= 0) { setErrorSI('Ingresá un monto mayor a 0.'); return }
+    setSavingSI(true); setErrorSI('')
+    const { error } = await crearSaldoInicial({
+      comercioId, clienteId: cliente.id, usuarioId: perfil?.id,
+      monto, fecha: formSI.fecha, vencimiento: formSI.vencimiento, notas: formSI.notas,
+    })
+    setSavingSI(false)
+    if (error) { setErrorSI(error.message || 'Error al cargar el saldo.'); return }
+    toast?.success(`Saldo inicial de ${fmt$(monto)} cargado`)
+    setFormSI(siVacio()); setShowSI(false)
+    await cargar()
+    onCambio?.()
+  }
+
+  async function handleAnularSI(v) {
+    if (!confirm(`¿Anular el saldo inicial de ${fmt$(v.cc_monto)}?`)) return
+    const { error } = await anularSaldoInicial(v.id)
+    if (error) { alert(error.message); return }
     await cargar()
     onCambio?.()
   }
@@ -160,7 +209,7 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
                   <div key={v.id} className={`ccli-hist-card${open ? ' ccli-hist-card--open' : ''}${v.estado === 'anulada' ? ' ccli-hist-card--anulada' : ''}`}>
                     <button type="button" className="ccli-hist-head" onClick={() => setAbierta(open ? null : v.id)}>
                       <div className="ccli-hist-info">
-                        <span className="ccli-hist-titulo"><span className="td-mono">{v.numero}</span> · {fmtFecha(v.fecha)}</span>
+                        <span className="ccli-hist-titulo"><span className="td-mono">{etiquetaVenta(v)}</span> · {fmtFecha(v.fecha)}</span>
                         {estado}
                       </div>
                       <div className="ccli-hist-montos">
@@ -179,7 +228,7 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
                           <span className="ccli-tl-dot"><i className="ti ti-shopping-cart" /></span>
                           <div className="ccli-tl-body">
                             <div className="ccli-tl-row">
-                              <span><strong>Venta {v.numero}</strong> · {fmtFecha(v.fecha)}</span>
+                              <span><strong>{v.es_saldo_inicial ? 'Saldo inicial' : `Venta ${v.numero}`}</strong> · {fmtFecha(v.fecha)}</span>
                               <span className="ccli-tl-monto ccli-tl-monto--cargo">+{fmt$(v.cc_monto)}</span>
                             </div>
                             {(v.items || []).length > 0 && (
@@ -192,6 +241,7 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
                                 ))}
                               </ul>
                             )}
+                            {v.es_saldo_inicial && v.notas && <p className="ccli-tl-nota">{v.notas}</p>}
                             {Number(v.recargo_monto) > 0 && (
                               <p className="ccli-tl-nota"><i className="ti ti-circle-plus" /> {v.notas || `Recargo ${fmt$(v.recargo_monto)}`}</p>
                             )}
@@ -270,18 +320,70 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
                   {deudas.map(v => (
                     <tr key={v.id}>
                       <td>
-                        <span className="td-mono">{v.numero}</span>
+                        <span className="td-mono" title={v.es_saldo_inicial ? v.notas || '' : undefined}>{etiquetaVenta(v)}</span>
                         <span className="ccli-fecha">{fmtFecha(v.fecha)}</span>
                       </td>
                       <td><VtoBadge fecha={v.fecha_vencimiento} /></td>
                       <td className="td-right td-muted">{fmt$(v.cc_monto)}</td>
-                      <td className="td-right ccli-resta">{fmt$(v.pendiente)}</td>
+                      <td className="td-right ccli-resta">
+                        {fmt$(v.pendiente)}
+                        {v.es_saldo_inicial && Number(v.cc_pagado) === 0 && (
+                          <button type="button" className="btn-icon btn-icon--danger" title="Anular saldo inicial"
+                            style={{ marginLeft: 4 }} onClick={() => handleAnularSI(v)}>
+                            <i className="ti ti-trash" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
           </div>
+
+          {/* Saldo inicial */}
+          {!loading && (showSI ? (
+            <form className="form-section" onSubmit={handleSaldoInicial}>
+              <p className="form-section-title">Cargar saldo inicial</p>
+              <p className="field-hint" style={{ marginTop: 0 }}>
+                Deuda que el cliente ya tenía en el sistema anterior. No descuenta stock, no entra en caja
+                ni suma en los reportes de ventas.
+              </p>
+              {errorSI && <div className="error-banner"><i className="ti ti-alert-circle" /> {errorSI}</div>}
+              <div className="form-grid">
+                <div className="field">
+                  <label className="field-label">Monto que debe $</label>
+                  <input className="field-input" type="number" min="0" step="0.01" placeholder="0" autoFocus
+                    value={formSI.monto} onChange={e => setSI('monto', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Fecha de la deuda</label>
+                  <input className="field-input" type="date" value={formSI.fecha} onChange={e => setSI('fecha', e.target.value)} />
+                </div>
+              </div>
+              <div className="form-grid">
+                <div className="field">
+                  <label className="field-label">Vencimiento</label>
+                  <input className="field-input" type="date" value={formSI.vencimiento} onChange={e => setSI('vencimiento', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Nota</label>
+                  <input className="field-input" placeholder="Saldo inicial" value={formSI.notas}
+                    onChange={e => setSI('notas', e.target.value)} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" onClick={() => { setShowSI(false); setErrorSI('') }}>Cancelar</button>
+                <button type="submit" className="btn btn--primary" disabled={savingSI}>
+                  <i className={`ti ${savingSI ? 'ti-loader-2' : 'ti-check'}`} /> Guardar saldo
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setShowSI(true)}>
+              <i className="ti ti-history-toggle" /> Cargar saldo inicial
+            </button>
+          ))}
 
           {/* Registrar cobro */}
           {saldo > 0 && (

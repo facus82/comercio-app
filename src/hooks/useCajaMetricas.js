@@ -53,6 +53,7 @@ export function useCajaMetricas(comercioId, fechaApertura) {
         .from('ventas')
         .select('id, total')
         .eq('comercio_id', comercioId)
+        .eq('es_saldo_inicial', false)
         .eq('estado', 'completada')
         .gte('fecha', fechaApertura),
 

@@ -150,6 +150,7 @@ function useVentasPeriodo(comercioId, periodo) {
         .lte('fecha', fin.toISOString())
         .eq('estado', 'completada')
         .eq('comercio_id', comercioId)
+        .eq('es_saldo_inicial', false)
 
       if (!cancelado) {
         setTotal((data || []).reduce((s, v) => s + Number(v.total), 0))
