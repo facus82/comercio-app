@@ -4,6 +4,50 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 
 ---
 
+## 2026-10-01
+
+### Ventas / POS
+- **Fotos grandes en la búsqueda**: cada resultado muestra la imagen del producto al costado (~4 líneas de alto) con nombre y precio más grandes, para reconocerlo de un vistazo. Al elegirlo queda como línea en el carrito y el buscador queda listo para el siguiente. En celular la foto es algo más chica. (`dc9a55f`)
+- **Filtro por período** en el listado de ventas: **Hoy · 7 días · 15 días · Mes** (mes en curso), y el selector de fecha para ver un día puntual. (`f36b5e3`)
+- **Buscador arriba de la tabla** con resumen del período: cantidad de ventas y total (sin anuladas). (`f36b5e3`)
+- Fix: "hoy" se calculaba en UTC, así que después de las 21 h la lista saltaba al día siguiente. Ahora usa la hora local. (`f36b5e3`)
+- Fix: sumar un producto con un ítem libre ya cargado en el carrito podía romper la pantalla. (`dc9a55f`)
+
+### Caja
+- Fix: el historial de **"Últimos cierres"** se rellenaba con cierres de ejemplo inventados (secciones "Graciela" y "Marcela") cuando había menos de 3 cierres reales, y aparecían en comercios reales. Ahora sólo se muestran los cierres del comercio; si no hay, un aviso. **Cada comercio ve únicamente sus propios datos.** (`31cb5a5`)
+- Fix: confirmar una distribución desde el historial de cierres daba error al refrescar. (`31cb5a5`)
+
+---
+
+## 2026-09-30
+
+### Migración desde otro sistema
+- **Importar clientes desde Excel**: crea o actualiza (por CUIT, DNI o nombre) y carga **saldos iniciales de Cta. Cte.** con su vencimiento; muestra el total antes de importar y no duplica si se importa dos veces. Plantilla descargable. (`74fd2ec`)
+- **"Cargar saldo inicial"** uno por uno desde la cuenta del cliente (se puede anular mientras no tenga cobros). El saldo inicial no suma en ventas, reportes, dashboard ni caja. Migración: `012_saldo_inicial.sql`. (`74fd2ec`)
+- **Importador de productos compatible con AppSheet**: detecta columnas, entiende precios con formato argentino, crea categorías faltantes (avisando antes), sube imágenes desde URL o carpeta y no pisa el stock al actualizar. (`3e93590`)
+- Modo **"sólo actualizar existentes"** para reimportar el mismo archivo (por ejemplo, sólo para agregar fotos). (`562a03c`)
+
+### Stock
+- **"+ Nueva…"** categoría o subcategoría directamente desde la ficha del producto, sin perder lo cargado. (`a3b8bad`)
+
+### Modo oscuro y reportes
+- **Modo oscuro**: automático según el sistema o elegido (Auto / Claro / Oscuro) desde el encabezado; se recuerda por dispositivo. (`e1b7f9b`)
+- **Reportes rehechos**: comparación con el período anterior, gráfico de ventas por día, aviso de productos vendidos sin costo y nueva pestaña **Cuentas corrientes** (antigüedad de deuda, clientes con saldo, cobros). (`e1b7f9b`, `fb3383d`)
+- Fix: "Este mes" y "Últimos 7 días" excluían las ventas del día. (`e1b7f9b`)
+
+### Configuración requerida en Supabase
+Ejecutar en SQL Editor: `012_saldo_inicial.sql`.
+
+---
+
+## 2026-09-29 (tarde)
+
+- **Tema visual "Mostrador"**: alto contraste, acento verde, tipografía IBM Plex, montos con 2 decimales cuando no son enteros. (`ffe15dc`)
+- Fix: **"¿Olvidaste tu contraseña?"** lleva al formulario de nueva contraseña. (`b4c554b`)
+- Fix: un link de invitación/recuperación usado o vencido ya no queda "Verificando enlace…" para siempre; ofrece pedir uno nuevo. (`71ef3cd`)
+
+---
+
 ## 2026-09-29
 
 ### Cuenta corriente de clientes
