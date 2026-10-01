@@ -348,7 +348,8 @@
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
   z-index: 50;
-  overflow: hidden;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
   animation: dd-in 120ms ease;
 }
 
@@ -360,7 +361,7 @@
 .pos-dd-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
   padding: 10px 14px;
   background: none;
@@ -411,6 +412,29 @@
   color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Foto grande (~4 líneas) para reconocer el producto de un vistazo */
+.pos-dd-item .prod-thumb { border-radius: 8px; }
+.pos-dropdown .pos-dd-main { gap: 6px; }
+.pos-dropdown .pos-dd-nombre {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.pos-dropdown .pos-dd-precio { font-size: 18px; }
+.pos-dropdown .pos-dd-cat,
+.pos-dropdown .pos-dd-stock { font-size: 11.5px; }
+
+@media (max-width: 600px) {
+  .pos-dd-item { gap: 12px; padding: 8px 10px; }
+  .pos-dd-item .prod-thumb { width: 72px !important; height: 72px !important; }
+  .pos-dropdown .pos-dd-nombre { font-size: 15px; }
+  .pos-dropdown .pos-dd-precio { font-size: 16px; }
 }
 
 .pos-dd-agotado {

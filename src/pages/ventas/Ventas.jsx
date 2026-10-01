@@ -320,7 +320,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     const precioFinal = esPromo ? Number(prod.precio_mayorista) : Number(prod.precio_venta)
 
     setCarrito(prev => {
-      const idx = prev.findIndex(it => it.producto.id === prod.id)
+      const idx = prev.findIndex(it => it.producto?.id === prod.id)
       if (idx >= 0) return prev.map((it, i) => i === idx ? { ...it, cantidad: it.cantidad + 1 } : it)
       return [...prev, { _key: Math.random().toString(36).slice(2), producto: prod, cantidad: 1, precioFinal, esPromo }]
     })
@@ -344,8 +344,8 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
   const carritoAgrupado = useMemo(() => {
     const map = new Map()
     carrito.forEach(it => {
-      const ccId = it.producto.centro_costo?.id ?? '__sin_cc__'
-      if (!map.has(ccId)) map.set(ccId, { cc: it.producto.centro_costo || null, items: [] })
+      const ccId = it.producto?.centro_costo?.id ?? '__sin_cc__'
+      if (!map.has(ccId)) map.set(ccId, { cc: it.producto?.centro_costo || null, items: [] })
       map.get(ccId).items.push(it)
     })
     return [...map.values()]
@@ -844,7 +844,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                       className={`pos-dd-item${sinStock ? ' pos-dd-item--agotado' : ''}`}
                       onMouseDown={() => agregarAlCarrito(prod)}
                     >
-                      <ProductoThumb url={prod.imagen_url} size={44} alt={prod.nombre} />
+                      <ProductoThumb url={prod.imagen_url} size={96} alt={prod.nombre} />
                       <div className="pos-dd-main">
                         <span className="pos-dd-nombre">{prod.nombre}</span>
                         <div className="pos-dd-meta">
