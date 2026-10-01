@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast'
 import { useVentas } from '../../hooks/useVentas'
 import { supabase } from '../../lib/supabase'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
-import { cargarDeudas, resumirPorCliente, sumarDias } from '../../hooks/useCuentasCobrar'
+import { cargarDeudas, resumirPorCliente, sumarDias, hoyISO } from '../../hooks/useCuentasCobrar'
 import ClientePanel from '../clientes/ClientePanel'
 import { ProductoThumb } from '../../components/shared/ImagenProducto'
 import EscanerCodigo from '../../components/shared/EscanerCodigo'
@@ -126,8 +126,16 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
   const descuentoEfectivoPct  = Number(perfil?.comercio?.descuento_efectivo_pct || 0)
   const comprobantesDisponibles = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
 
-  const [fechaFiltro, setFechaFiltro] = useState(() => new Date().toISOString().slice(0, 10))
-  const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id, fechaFiltro)
+  // periodo: 'dia' usa fechaFiltro; '7' / '15' = últimos N días; 'mes' = mes en curso
+  const [periodo,     setPeriodo]     = useState('dia')
+  const [fechaFiltro, setFechaFiltro] = useState(hoyISO)
+  const hoy = hoyISO()
+  const [desde, hasta] =
+    periodo === '7'   ? [sumarDias(-6), hoy] :
+    periodo === '15'  ? [sumarDias(-14), hoy] :
+    periodo === 'mes' ? [hoy.slice(0, 8) + '01', hoy] :
+                        [fechaFiltro, fechaFiltro]
+  const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id, desde, hasta)
 
   const [vista, setVista] = useState(modoCaja ? 'pos' : 'lista')
 
@@ -1381,26 +1389,22 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
 
       <div className="toolbar">
         <div className="toolbar-left">
-          <div className="search-box">
-            <i className="ti ti-search" />
-            <input
-              placeholder="Buscar cliente, número..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="ventas-periodo">
+            <div className="pills">
+              <button className={`pill${periodo === 'dia' && fechaFiltro === hoy ? ' pill--active' : ''}`}
+                onClick={() => { setPeriodo('dia'); setFechaFiltro(hoy) }}>Hoy</button>
+              <button className={`pill${periodo === '7' ? ' pill--active' : ''}`} onClick={() => setPeriodo('7')}>7 días</button>
+              <button className={`pill${periodo === '15' ? ' pill--active' : ''}`} onClick={() => setPeriodo('15')}>15 días</button>
+              <button className={`pill${periodo === 'mes' ? ' pill--active' : ''}`} onClick={() => setPeriodo('mes')}>Mes</button>
+            </div>
             <input
               type="date"
-              className="input-date-filter"
-              value={fechaFiltro}
-              onChange={e => setFechaFiltro(e.target.value)}
+              className={`input-date-filter${periodo === 'dia' && fechaFiltro !== hoy ? ' input-date-filter--active' : ''}`}
+              title="Ver un día puntual"
+              value={periodo === 'dia' ? fechaFiltro : ''}
+              max={hoy}
+              onChange={e => { if (e.target.value) { setFechaFiltro(e.target.value); setPeriodo('dia') } }}
             />
-            {fechaFiltro !== new Date().toISOString().slice(0, 10) && (
-              <button className="pill" onClick={() => setFechaFiltro(new Date().toISOString().slice(0, 10))}>
-                Hoy
-              </button>
-            )}
           </div>
           <div className="pills">
             <button className={`pill${!filtroEstado ? ' pill--active' : ''}`} onClick={() => setFiltroEstado(null)}>Todas</button>
@@ -1426,6 +1430,24 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
         </div>
       </div>
 
+      <div className="ventas-busqueda">
+        <div className="search-box">
+          <i className="ti ti-search" />
+          <input
+            placeholder="Buscar cliente, número..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+        {!loadingVentas && ventasFiltradas.length > 0 && (
+          <span className="ventas-resumen">
+            {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'}
+            {' · '}
+            <strong>{fmt$(ventasFiltradas.filter(v => v.estado !== 'anulada').reduce((s, v) => s + Number(v.total || 0), 0))}</strong>
+          </span>
+        )}
+      </div>
+
       <div className="table-wrap">
         {loadingVentas ? (
           <table className="data-table">
@@ -1440,7 +1462,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
         ) : ventasFiltradas.length === 0 ? (
           <div className="table-empty">
             <i className="ti ti-shopping-bag" />
-            <span>{busqueda || filtroEstado ? 'Sin resultados' : `No hay ventas para esta fecha.`}</span>
+            <span>{busqueda || filtroEstado ? 'Sin resultados' : periodo === 'dia' ? 'No hay ventas para esta fecha.' : 'No hay ventas en este período.'}</span>
             {!busqueda && !filtroEstado && (
               <button className="btn btn--primary" onClick={() => setVista('pos')}>
                 <i className="ti ti-plus" /> Nueva venta

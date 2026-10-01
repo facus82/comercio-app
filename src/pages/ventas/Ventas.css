@@ -3,6 +3,31 @@
 ════════════════════════════════════════════════════════ */
 .ventas-page { max-width: var(--content-max-width); }
 
+/* Período (Hoy / 7 / 15 / Mes) + día puntual */
+.ventas-periodo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.input-date-filter--active { border-color: var(--color-accent); color: var(--color-accent); font-weight: 500; }
+
+/* Buscador arriba de la tabla + resumen del período */
+.ventas-busqueda {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-3);
+}
+.ventas-busqueda .search-box { flex: 1; max-width: 420px; }
+.ventas-resumen {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.ventas-resumen strong { color: var(--color-text-primary); font-weight: 600; }
+@media (max-width: 600px) {
+  .ventas-busqueda { flex-wrap: wrap; }
+  .ventas-busqueda .search-box { max-width: none; flex-basis: 100%; }
+  .ventas-resumen { margin-left: 0; }
+}
+
 /* ── Badges de promo en carrito ── */
 .badge-promo-desc {
   display: inline-flex;

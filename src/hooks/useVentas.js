@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function useVentas(comercioId, perfilId, fecha) {
+// desde/hasta: 'YYYY-MM-DD' (hasta = desde para un solo día)
+export function useVentas(comercioId, perfilId, desde, hasta = desde) {
   const [ventas, setVentas]   = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
@@ -9,7 +10,7 @@ export function useVentas(comercioId, perfilId, fecha) {
   useEffect(() => {
     if (!comercioId) return
     cargar()
-  }, [comercioId, fecha])
+  }, [comercioId, desde, hasta])
 
   async function cargar() {
     setLoading(true)
@@ -20,11 +21,11 @@ export function useVentas(comercioId, perfilId, fecha) {
       .eq('comercio_id', comercioId)
       .eq('es_saldo_inicial', false)
       .order('fecha', { ascending: false })
-      .limit(500)
+      .limit(2000)
 
-    if (fecha) {
-      const inicio = new Date(fecha + 'T00:00:00').toISOString()
-      const fin    = new Date(fecha + 'T23:59:59.999').toISOString()
+    if (desde) {
+      const inicio = new Date(desde + 'T00:00:00').toISOString()
+      const fin    = new Date((hasta || desde) + 'T23:59:59.999').toISOString()
       q = q.gte('fecha', inicio).lte('fecha', fin)
     }
 
