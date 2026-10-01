@@ -242,7 +242,7 @@ export default function Caja() {
             </div>
           </div>
           <div className="caja-col-historial">
-            <HistorialCierres historial={historial} />
+            <HistorialCierres historial={historial} recargar={recargar} />
           </div>
         </div>
       ) : (
@@ -681,7 +681,7 @@ export default function Caja() {
               </div>
             </div>
 
-            {historial.length > 0 && <HistorialCierres historial={historial} />}
+            {historial.length > 0 && <HistorialCierres historial={historial} recargar={recargar} />}
           </div>
         </div>
       )}
@@ -703,98 +703,20 @@ export default function Caja() {
   )
 }
 
-/* ── Ejemplos estáticos para cuando no hay cierres reales ── */
-const EJEMPLOS_CIERRES = [
-  {
-    id:                    'ej-1',
-    fecha_apertura:        '2026-05-21T08:00:00',
-    fecha_cierre:          '2026-05-21T22:10:00',
-    saldo_apertura:        5000,
-    total_ventas_efectivo: 38200,
-    total_ventas_debito:   12500,
-    total_ventas_credito:  0,
-    total_ventas_transfer: 0,
-    total_ventas_mp:       0,
-    total_ingresos:        2000,
-    total_retiros:         15000,
-    efectivo_contado:      43000,
-    diferencia:            -200,
-    porCC: [
-      { id: 'cc-a', nombre: 'Graciela', color: '#6366f1', total: 28400, mediosPago: { efectivo: 16200, tarjeta_debito: 7800, tarjeta_credito: 4400 } },
-      { id: 'cc-b', nombre: 'Marcela',  color: '#f59e0b', total: 22300, mediosPago: { efectivo: 12400, tarjeta_debito: 6900, tarjeta_credito: 3000 } },
-    ],
-  },
-  {
-    id:                    'ej-2',
-    fecha_apertura:        '2026-05-21T08:00:00',
-    fecha_cierre:          '2026-05-21T13:30:00',
-    saldo_apertura:        4000,
-    total_ventas_efectivo: 31500,
-    total_ventas_debito:   0,
-    total_ventas_credito:  0,
-    total_ventas_transfer: 8900,
-    total_ventas_mp:       0,
-    total_ingresos:        0,
-    total_retiros:         0,
-    efectivo_contado:      35500,
-    diferencia:            0,
-    porCC: [
-      { id: 'cc-a', nombre: 'Graciela', color: '#6366f1', total: 25100, mediosPago: { efectivo: 18600, transferencia: 6500 } },
-      { id: 'cc-b', nombre: 'Marcela',  color: '#f59e0b', total: 15300, mediosPago: { efectivo: 12900, transferencia: 2400 } },
-    ],
-  },
-  {
-    id:                    'ej-3',
-    fecha_apertura:        '2026-05-20T08:30:00',
-    fecha_cierre:          '2026-05-20T22:30:00',
-    saldo_apertura:        3000,
-    total_ventas_efectivo: 29700,
-    total_ventas_debito:   6400,
-    total_ventas_credito:  15200,
-    total_ventas_transfer: 0,
-    total_ventas_mp:       0,
-    total_ingresos:        5000,
-    total_retiros:         10000,
-    efectivo_contado:      33200,
-    diferencia:            500,
-    porCC: [
-      { id: 'cc-a', nombre: 'Graciela', color: '#6366f1', total: 33100, mediosPago: { efectivo: 16100, tarjeta_debito: 3800, tarjeta_credito: 9200, transferencia: 4000 } },
-      { id: 'cc-b', nombre: 'Marcela',  color: '#f59e0b', total: 18200, mediosPago: { efectivo: 13600, tarjeta_debito: 2600, tarjeta_credito: 2000 } },
-    ],
-  },
-]
-
-const MIN_VISIBLES = 3
-
-function HistorialCierres({ historial }) {
+function HistorialCierres({ historial, recargar }) {
   const [cierreDetalle, setCierreDetalle] = useState(null)
-
-  const faltanEjemplos = Math.max(0, MIN_VISIBLES - historial.length)
-  const items          = [...historial, ...EJEMPLOS_CIERRES.slice(0, faltanEjemplos)]
-  const hayEjemplos    = faltanEjemplos > 0
-
-  const chipEjemplo = (
-    <span style={{
-      fontSize: 9, fontWeight: 500,
-      background: 'var(--color-border-tertiary)',
-      color: 'var(--color-text-tertiary)',
-      borderRadius: 4, padding: '1px 5px',
-      letterSpacing: '0.04em', textTransform: 'uppercase',
-    }}>
-      ejemplo
-    </span>
-  )
 
   return (
     <>
       <div className="form-section">
         <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           Últimos cierres
-          {hayEjemplos && chipEjemplo}
         </p>
+        {historial.length === 0 && (
+          <p className="caja-hist-vacio">Todavía no hay cierres de caja.</p>
+        )}
         <div className="caja-historial-list">
-          {items.map((c, idx) => {
-            const esEj      = idx >= historial.length
+          {historial.map(c => {
             const totalVend = ['total_ventas_efectivo','total_ventas_debito','total_ventas_credito',
                                'total_ventas_transfer','total_ventas_mp','total_ventas_cc']
                               .reduce((s, k) => s + Number(c[k] || 0), 0)
@@ -803,13 +725,11 @@ function HistorialCierres({ historial }) {
                 key={c.id}
                 type="button"
                 className="caja-historial-item caja-historial-item--btn"
-                style={esEj ? { opacity: 0.55 } : undefined}
                 onClick={() => setCierreDetalle(c)}
                 title="Ver detalle"
               >
                 <div className="caja-hist-fecha" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {fmtFechaHora(c.fecha_cierre)}
-                  {esEj && chipEjemplo}
                   <i className="ti ti-chevron-right caja-hist-arrow" />
                 </div>
 
