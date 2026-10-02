@@ -194,12 +194,30 @@ export function useVentas(comercioId, perfilId, desde, hasta = desde) {
         cliente:clientes(id, nombre, apellido, email, telefono),
         items:venta_items(*, producto:productos(nombre, codigo)),
         pagos:venta_pagos(medio_pago, monto, referencia),
-        promociones_aplicadas:venta_promociones(promo_id, promo_nombre, tipo, descuento_monto)
+        promociones_aplicadas:venta_promociones(promo_id, promo_nombre, tipo, descuento_monto),
+        devoluciones(id, fecha, monto, items, imputaciones, reintegro, reintegro_medio, created_at)
       `)
       .eq('id', id)
       .single()
     return { data, error }
   }
 
-  return { ventas, loading, error, cargar, crear, anular, cargarDetalle }
+  // Devolución parcial o total — todo en registrar_devolucion() (013_devoluciones.sql).
+  // items: [{ venta_item_id, cantidad }]
+  async function devolver(ventaId, items, { aplicarDeudas = true, medioReintegro = 'efectivo', notas = null } = {}) {
+    const { data, error } = await supabase.rpc('registrar_devolucion', {
+      p_venta_id:        ventaId,
+      p_items:           items,
+      p_aplicar_deudas:  aplicarDeudas,
+      p_medio_reintegro: medioReintegro,
+      p_notas:           notas,
+    })
+    if (error) return { error }
+    setVentas(prev => prev.map(v => v.id === ventaId
+      ? { ...v, total: Number(v.total) - data.monto, devuelto_monto: Number(v.devuelto_monto || 0) + data.monto }
+      : v))
+    return { data }
+  }
+
+  return { ventas, loading, error, cargar, crear, anular, devolver, cargarDetalle }
 }

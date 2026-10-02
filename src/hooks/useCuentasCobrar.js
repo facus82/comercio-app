@@ -90,7 +90,7 @@ export async function cargarCobros(clienteId) {
 export async function cargarVentasCC(comercioId, clienteId) {
   const { data, error } = await supabase
     .from('ventas')
-    .select('id, numero, fecha, estado, total, recargo_monto, notas, es_saldo_inicial, cc_monto, cc_pagado, fecha_vencimiento, items:venta_items(descripcion, cantidad, subtotal)')
+    .select('id, numero, fecha, estado, total, recargo_monto, notas, es_saldo_inicial, cc_monto, cc_pagado, fecha_vencimiento, items:venta_items(descripcion, cantidad, cantidad_devuelta, subtotal)')
     .eq('comercio_id', comercioId)
     .eq('cliente_id', clienteId)
     .gt('cc_monto', 0)
@@ -99,11 +99,27 @@ export async function cargarVentasCC(comercioId, clienteId) {
   return { data: data || [], error }
 }
 
-/* Historia de cada deuda: nace en la venta y se le aplican los cobros hasta cancelarla.
+/* Devoluciones del cliente: su crédito se imputa a deudas igual que un cobro */
+export async function cargarDevoluciones(clienteId) {
+  const { data, error } = await supabase
+    .from('devoluciones')
+    .select('id, venta_id, fecha, monto, imputaciones, created_at')
+    .eq('cliente_id', clienteId)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  return { data: data || [], error }
+}
+
+/* Historia de cada deuda: nace en la venta y se le aplican cobros y devoluciones hasta cancelarla.
    Devuelve [{ venta, movimientos: [{ fecha, medio, monto, referencia, saldo }], canceladaEl }] */
-export function armarHistorial(ventasCC, cobros) {
+export function armarHistorial(ventasCC, cobros, devoluciones = []) {
   const porVenta = {}
-  ;[...cobros]
+  const numeroVenta = Object.fromEntries(ventasCC.map(v => [v.id, v.numero]))
+  const devsComoCobros = devoluciones.map(d => ({
+    id: d.id, fecha: d.fecha, created_at: d.created_at, medio_pago: 'devolucion', imputaciones: d.imputaciones,
+    referencia: numeroVenta[d.venta_id] ? `de venta ${numeroVenta[d.venta_id]}` : null,
+  }))
+  ;[...cobros, ...devsComoCobros]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .forEach(c => (c.imputaciones || []).forEach(imp => {
       (porVenta[imp.venta_id] ||= []).push({

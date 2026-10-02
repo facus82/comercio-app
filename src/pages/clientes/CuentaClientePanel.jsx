@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../hooks/useAuth'
 import {
-  cargarVentasCC, cargarCobros, registrarCobro, armarHistorial,
+  cargarVentasCC, cargarCobros, cargarDevoluciones, registrarCobro, armarHistorial,
   crearSaldoInicial, anularSaldoInicial, diasHasta, hoyISO, sumarDias, nombreCliente, linkWhatsApp,
 } from '../../hooks/useCuentasCobrar'
 import './CuentaCliente.css'
@@ -40,6 +40,7 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
   const { perfil } = useAuth()
   const [ventasCC, setVentasCC] = useState([])
   const [cobros,   setCobros]   = useState([])
+  const [devols,   setDevols]   = useState([])
   const [loading,  setLoading]  = useState(true)
   const [tab,      setTab]      = useState('pendientes')   // pendientes | historial
   const [abierta,  setAbierta]  = useState(null)           // venta expandida en historial
@@ -58,12 +59,14 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
 
   const cargar = useCallback(async () => {
     setLoading(true)
-    const [resV, resC] = await Promise.all([
+    const [resV, resC, resD] = await Promise.all([
       cargarVentasCC(comercioId, cliente.id),
       cargarCobros(cliente.id),
+      cargarDevoluciones(cliente.id),
     ])
     setVentasCC(resV.data)
     setCobros(resC.data)
+    setDevols(resD.data)
     setLoading(false)
   }, [comercioId, cliente.id])
 
@@ -75,7 +78,7 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
     return () => document.removeEventListener('keydown', fn)
   }, [onCerrar])
 
-  const historial = useMemo(() => armarHistorial(ventasCC, cobros), [ventasCC, cobros])
+  const historial = useMemo(() => armarHistorial(ventasCC, cobros, devols), [ventasCC, cobros, devols])
   const deudas    = useMemo(() => historial
     .filter(h => h.venta.estado === 'completada' && h.pendiente > 0.009)
     .map(h => ({ ...h.venta, pendiente: h.pendiente }))
@@ -235,7 +238,10 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
                               <ul className="ccli-tl-items">
                                 {v.items.map((it, i) => (
                                   <li key={i}>
-                                    <span>{Number(it.cantidad)} × {it.descripcion}</span>
+                                    <span>
+                                      {Number(it.cantidad)} × {it.descripcion}
+                                      {Number(it.cantidad_devuelta) > 0 && ` (devolvió ${Number(it.cantidad_devuelta)})`}
+                                    </span>
                                     <span>{fmt$(it.subtotal)}</span>
                                   </li>
                                 ))}
@@ -258,7 +264,11 @@ export default function CuentaClientePanel({ cliente, comercioId, onCerrar, onCa
                             <span className="ccli-tl-dot"><i className="ti ti-arrow-down-left" /></span>
                             <div className="ccli-tl-body">
                               <div className="ccli-tl-row">
-                                <span>Pago · {fmtFecha(m.fecha)} · {MEDIO_LABEL[m.medio] || m.medio}</span>
+                                <span>
+                                  {m.medio === 'devolucion'
+                                    ? `Devolución · ${fmtFecha(m.fecha)}`
+                                    : `Pago · ${fmtFecha(m.fecha)} · ${MEDIO_LABEL[m.medio] || m.medio}`}
+                                </span>
                                 <span className="ccli-tl-monto ccli-tl-monto--pago">−{fmt$(m.monto)}</span>
                               </div>
                               <p className="ccli-tl-nota">

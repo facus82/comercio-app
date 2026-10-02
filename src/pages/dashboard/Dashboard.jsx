@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { cargarDeudas, resumirPorCliente, linkWhatsApp } from '../../hooks/useCuentasCobrar'
+import { cargarDevolucionesRango, totalOriginal } from '../../lib/devoluciones'
 import PagoCompraModal from './PagoCompraModal'
 import CuentaClientePanel from '../clientes/CuentaClientePanel'
 import './Dashboard.css'
@@ -154,17 +155,20 @@ function useVentasPeriodo(comercioId, periodo) {
       const inicio = new Date(periodo.year, periodo.month, 1)
       const fin    = new Date(periodo.year, periodo.month + 1, 0, 23, 59, 59)
 
-      const { data } = await supabase
-        .from('ventas')
-        .select('total')
-        .gte('fecha', inicio.toISOString())
-        .lte('fecha', fin.toISOString())
-        .eq('estado', 'completada')
-        .eq('comercio_id', comercioId)
-        .eq('es_saldo_inicial', false)
+      const [{ data }, devs] = await Promise.all([
+        supabase
+          .from('ventas')
+          .select('total, devuelto_monto')
+          .gte('fecha', inicio.toISOString())
+          .lte('fecha', fin.toISOString())
+          .eq('estado', 'completada')
+          .eq('comercio_id', comercioId)
+          .eq('es_saldo_inicial', false),
+        cargarDevolucionesRango(comercioId, inicio.toISOString(), fin.toISOString()),
+      ])
 
       if (!cancelado) {
-        setTotal((data || []).reduce((s, v) => s + Number(v.total), 0))
+        setTotal((data || []).reduce((s, v) => s + totalOriginal(v), 0) - devs.total)
         setLoadingVentas(false)
       }
     }

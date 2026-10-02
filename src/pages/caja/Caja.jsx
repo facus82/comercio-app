@@ -262,6 +262,9 @@ export default function Caja() {
                   <div className="caja-stat">
                     <span className="caja-stat-label">Total vendido</span>
                     <span className="caja-stat-val">{fmt$(metricas?.totalVendido)}</span>
+                    {metricas?.totalDevuelto > 0 && (
+                      <span className="caja-stat-sub">incluye devoluciones −{fmt$(metricas.totalDevuelto)}</span>
+                    )}
                   </div>
                   <div className="caja-stat">
                     <span className="caja-stat-label">Operaciones</span>

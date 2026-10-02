@@ -135,7 +135,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     periodo === '15'  ? [sumarDias(-14), hoy] :
     periodo === 'mes' ? [hoy.slice(0, 8) + '01', hoy] :
                         [fechaFiltro, fechaFiltro]
-  const { ventas, loading: loadingVentas, crear, anular, cargarDetalle } = useVentas(comercioId, perfil?.id, desde, hasta)
+  const { ventas, loading: loadingVentas, crear, anular, devolver, cargarDetalle } = useVentas(comercioId, perfil?.id, desde, hasta)
 
   const [vista, setVista] = useState(modoCaja ? 'pos' : 'lista')
 
@@ -195,7 +195,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
 
   async function handleAnular(v) {
     if (Number(v.cc_pagado) > 0.009) {
-      toast?.error(`No se puede anular: el cliente ya pagó ${fmt$(v.cc_pagado)} de esta venta a Cta. Cte.`)
+      toast?.error(`No se puede anular: el cliente ya pagó ${fmt$(v.cc_pagado)} de esta venta a Cta. Cte. Si devuelve los productos, usá "Devolución" en el detalle de la venta.`, 8000)
       return false
     }
     if (!confirm(`¿Anular la venta ${v.numero} por ${fmt$(v.total)}? Los productos vuelven al stock.`)) return false
@@ -206,6 +206,21 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
       ? { ...p, stock_actual: Number(p.stock_actual) + repuestos.get(p.id) } : p))
     toast?.success(`Venta ${v.numero} anulada`)
     return true
+  }
+
+  async function handleDevolver(v, items, opciones) {
+    const res = await devolver(v.id, items, opciones)
+    if (res.error) return res
+    const d = res.data
+    const devueltos = new Map(d.items.map(it => [it.producto_id, Number(it.cantidad)]))
+    setProductos(prev => prev.map(p => devueltos.has(p.id) && p.controla_stock
+      ? { ...p, stock_actual: Number(p.stock_actual) + devueltos.get(p.id) } : p))
+    const partes = []
+    if (d.aplicado > 0.009)  partes.push(`${fmt$(d.aplicado)} descontado de la deuda`)
+    if (d.reintegro > 0.009) partes.push(`${fmt$(d.reintegro)} a devolver al cliente${d.en_caja ? ' (retiro de caja)' : ''}`)
+    toast?.success(`Devolución de ${fmt$(d.monto)} registrada${partes.length ? ' · ' + partes.join(' · ') : ''}`, 8000)
+    await abrirDetalle(v)
+    return res
   }
 
   /* Sincronizar comprobante con condicion_iva */
@@ -1527,7 +1542,12 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                     </div>
                   </td>
                   <td className="td-right" style={{ fontWeight: 500 }}>{fmt$(v.total)}</td>
-                  <td><span className={`badge ${ESTADO_BADGE[v.estado] || 'badge--neutral'}`}>{v.estado}</span></td>
+                  <td>
+                    <span className={`badge ${ESTADO_BADGE[v.estado] || 'badge--neutral'}`}>{v.estado}</span>
+                    {Number(v.devuelto_monto) > 0 && (
+                      <span className="badge badge--warning badge-devuelto" title={`Devuelto ${fmt$(v.devuelto_monto)}`}>devolución</span>
+                    )}
+                  </td>
                   <td className="td-actions" onClick={e => e.stopPropagation()}>
                     {v.estado === 'completada' && (
                       <button className="btn-icon btn-icon--danger" title="Anular" onClick={() => handleAnular(v)}>
@@ -1548,21 +1568,76 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
         venta={ventaDetalle}
         onClose={() => setVentaDetalle(null)}
         onAnular={async () => { if (await handleAnular(ventaDetalle)) setVentaDetalle(prev => ({ ...prev, estado: 'anulada' })) }}
+        onDevolver={(items, opciones) => handleDevolver(ventaDetalle, items, opciones)}
       />
     )}
     </>
   )
 }
 
-function ModalDetalleVenta({ venta, onClose, onAnular }) {
+const REINTEGRO_MEDIOS = [
+  { value: 'efectivo',      label: 'Efectivo'      },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'mercado_pago',  label: 'Mercado Pago'  },
+  { value: 'otro',          label: 'Otro'          },
+]
+
+function ModalDetalleVenta({ venta, onClose, onAnular, onDevolver }) {
   const loading  = venta._loading
   const items    = venta.items || []
   const pagos    = venta.pagos || []
   const promos   = venta.promociones_aplicadas || []
+  const devols   = venta.devoluciones || []
 
   const clienteNombre = venta.cliente
     ? `${venta.cliente.nombre} ${venta.cliente.apellido || ''}`.trim()
     : 'Consumidor final'
+
+  /* ── Devolución ── */
+  const [devolviendo, setDevolviendo] = useState(false)
+  const [cantDev,     setCantDev]     = useState({})          // { [venta_item_id]: cantidad }
+  const [aplicarDeud, setAplicarDeud] = useState(true)
+  const [medioReint,  setMedioReint]  = useState('efectivo')
+  const [savingDev,   setSavingDev]   = useState(false)
+  const [errorDev,    setErrorDev]    = useState('')
+
+  const puedeDevolver = venta.estado === 'completada' && !loading && items.some(it => Number(it.cantidad) > 0)
+
+  // Misma cuenta que registrar_devolucion(): proporcional al total (descuentos/recargos incluidos)
+  const subItems   = items.reduce((s, it) => s + Number(it.subtotal), 0)
+  const subDev     = items.reduce((s, it) => {
+    const c = Math.min(Number(cantDev[it.id]) || 0, Number(it.cantidad))
+    if (c <= 0) return s
+    return s + (c >= Number(it.cantidad) ? Number(it.subtotal) : Number(it.subtotal) / Number(it.cantidad) * c)
+  }, 0)
+  const devuelveTodo = items.every(it => (Number(cantDev[it.id]) || 0) >= Number(it.cantidad))
+  const montoDev   = subDev <= 0 ? 0
+    : devuelveTodo ? Number(venta.total)
+    : Math.min(Number(venta.total), +(Number(venta.total) * subDev / (subItems || 1)).toFixed(2))
+  const pendEsta   = Math.max(0, Number(venta.cc_monto || 0) - Number(venta.cc_pagado || 0))
+  const aEsta      = Math.min(pendEsta, montoDev)
+  const resto      = +(montoDev - aEsta).toFixed(2)
+
+  function setCant(it, valor) {
+    const n = Math.max(0, Math.min(Number(it.cantidad), Number(valor) || 0))
+    setCantDev(prev => ({ ...prev, [it.id]: valor === '' ? '' : n }))
+  }
+
+  function cancelarDevolucion() {
+    setDevolviendo(false); setCantDev({}); setErrorDev('')
+  }
+
+  async function confirmarDevolucion() {
+    const lista = items
+      .filter(it => Number(cantDev[it.id]) > 0)
+      .map(it => ({ venta_item_id: it.id, cantidad: Number(cantDev[it.id]) }))
+    if (!lista.length) { setErrorDev('Indicá cuánto devuelve de cada producto.'); return }
+    setSavingDev(true); setErrorDev('')
+    const res = await onDevolver(lista, { aplicarDeudas: aplicarDeud, medioReintegro: medioReint })
+    setSavingDev(false)
+    if (res?.error) { setErrorDev(res.error.message || 'No se pudo registrar la devolución.'); return }
+    cancelarDevolucion()
+  }
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -1607,23 +1682,115 @@ function ModalDetalleVenta({ venta, onClose, onAnular }) {
                     <th className="td-right">Precio unit.</th>
                     <th className="td-right">Desc. %</th>
                     <th className="td-right">Subtotal</th>
+                    {devolviendo && <th className="td-right">Devuelve</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {items.length === 0 ? (
-                    <tr><td colSpan={5} className="td-muted" style={{ textAlign: 'center' }}>Sin ítems</td></tr>
+                    <tr><td colSpan={devolviendo ? 6 : 5} className="td-muted" style={{ textAlign: 'center' }}>Sin ítems</td></tr>
                   ) : items.map((it, i) => (
                     <tr key={i}>
-                      <td>{it.descripcion}</td>
-                      <td className="td-right td-mono">{it.cantidad}</td>
+                      <td>
+                        {it.descripcion}
+                        {Number(it.cantidad_devuelta) > 0 && (
+                          <span className="detalle-devuelto">devolvió {Number(it.cantidad_devuelta)}</span>
+                        )}
+                      </td>
+                      <td className="td-right td-mono">{Number(it.cantidad)}</td>
                       <td className="td-right td-mono">{fmt$(it.precio_unitario)}</td>
                       <td className="td-right td-mono">{it.descuento_pct ? `${it.descuento_pct}%` : '—'}</td>
                       <td className="td-right td-mono" style={{ fontWeight: 500 }}>{fmt$(it.subtotal)}</td>
+                      {devolviendo && (
+                        <td className="td-right">
+                          {Number(it.cantidad) > 0 ? (
+                            <div className="devol-cant">
+                              <input type="number" className="field-input" min="0" max={Number(it.cantidad)} step="1"
+                                placeholder="0" value={cantDev[it.id] ?? ''}
+                                onChange={e => setCant(it, e.target.value)} />
+                              <button type="button" className="btn btn--sm" onClick={() => setCant(it, it.cantidad)}>Todo</button>
+                            </div>
+                          ) : <span className="td-muted">—</span>}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {devolviendo && (
+              <div className="modal-detalle__section devol-panel">
+                <div className="modal-detalle__section-title">
+                  <i className="ti ti-arrow-back-up" /> Devolución
+                  {items.some(it => Number(it.cantidad) > 0) && (
+                    <button type="button" className="btn btn--sm" style={{ marginLeft: 'auto' }}
+                      onClick={() => setCantDev(Object.fromEntries(items.map(it => [it.id, Number(it.cantidad)])))}>
+                      Devuelve todo
+                    </button>
+                  )}
+                </div>
+                {montoDev > 0 ? (
+                  <div className="devol-resumen">
+                    <div className="devol-resumen__row devol-resumen__row--total">
+                      <span>Valor de lo devuelto</span><span className="td-mono">{fmt$(montoDev)}</span>
+                    </div>
+                    <p className="devol-resumen__nota"><i className="ti ti-package" /> Los productos vuelven al stock.</p>
+                    {aEsta > 0 && (
+                      <div className="devol-resumen__row">
+                        <span>Se descuenta de la deuda de esta venta</span><span className="td-mono">{fmt$(aEsta)}</span>
+                      </div>
+                    )}
+                    {resto > 0 && (
+                      <>
+                        <div className="devol-resumen__row">
+                          <span>
+                            {venta.cliente && aplicarDeud
+                              ? 'A otras deudas del cliente; si no tiene, se le devuelve'
+                              : 'Se le devuelve al cliente'}
+                          </span>
+                          <span className="td-mono">{fmt$(resto)}</span>
+                        </div>
+                        <div className="devol-opciones">
+                          {venta.cliente && (
+                            <label className="devol-check">
+                              <input type="checkbox" checked={aplicarDeud} onChange={e => setAplicarDeud(e.target.checked)} />
+                              Aplicar a otras deudas del cliente
+                            </label>
+                          )}
+                          <label className="devol-medio">
+                            <span className="field-label">Se devuelve en</span>
+                            <select className="field-input" value={medioReint} onChange={e => setMedioReint(e.target.value)}>
+                              {REINTEGRO_MEDIOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        {medioReint === 'efectivo' && (
+                          <p className="devol-resumen__nota"><i className="ti ti-cash" /> Si hay caja abierta, sale como retiro de caja.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="devol-resumen__nota">Indicá cuántas unidades devuelve de cada producto.</p>
+                )}
+                {errorDev && <div className="error-banner"><i className="ti ti-alert-circle" /> {errorDev}</div>}
+              </div>
+            )}
+
+            {devols.length > 0 && !devolviendo && (
+              <div className="modal-detalle__section">
+                <div className="modal-detalle__section-title">Devoluciones</div>
+                {devols.map(d => (
+                  <div key={d.id} className="modal-detalle__pago-row">
+                    <span>
+                      {fmtFechaHora(d.created_at)} · {(d.items || []).map(it => `${Number(it.cantidad)} × ${it.descripcion}`).join(', ')}
+                      {Number(d.reintegro) > 0 && ` · devuelto ${fmt$(d.reintegro)} en ${(d.reintegro_medio || '').replace(/_/g, ' ')}`}
+                    </span>
+                    <span className="td-mono">−{fmt$(d.monto)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="modal-detalle__bottom">
               <div className="modal-detalle__pagos">
@@ -1686,12 +1853,29 @@ function ModalDetalleVenta({ venta, onClose, onAnular }) {
         )}
 
         <div className="modal-detalle__footer">
-          {venta.estado === 'completada' && (
-            <button className="btn btn--danger" onClick={onAnular}>
-              <i className="ti ti-ban" /> Anular venta
-            </button>
+          {devolviendo ? (
+            <>
+              <button className="btn" onClick={cancelarDevolucion} disabled={savingDev}>Cancelar</button>
+              <button className="btn btn--primary" onClick={confirmarDevolucion} disabled={savingDev || montoDev <= 0}>
+                <i className={`ti ${savingDev ? 'ti-loader-2' : 'ti-check'}`} />
+                {savingDev ? 'Registrando...' : `Confirmar devolución${montoDev > 0 ? ` · ${fmt$(montoDev)}` : ''}`}
+              </button>
+            </>
+          ) : (
+            <>
+              {venta.estado === 'completada' && (
+                <button className="btn btn--danger" onClick={onAnular}>
+                  <i className="ti ti-ban" /> Anular venta
+                </button>
+              )}
+              {puedeDevolver && (
+                <button className="btn" onClick={() => setDevolviendo(true)}>
+                  <i className="ti ti-arrow-back-up" /> Devolución
+                </button>
+              )}
+              <button className="btn" onClick={onClose}>Cerrar</button>
+            </>
           )}
-          <button className="btn" onClick={onClose}>Cerrar</button>
         </div>
       </div>
     </div>

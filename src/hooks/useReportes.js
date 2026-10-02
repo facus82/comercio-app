@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { cargarDeudas, resumirPorCliente } from './useCuentasCobrar'
+import { cargarDevolucionesRango, totalOriginal } from '../lib/devoluciones'
 
 /* 'YYYY-MM-DD' (día local) → límites ISO del día en hora de Argentina.
    ventas.fecha es timestamptz: comparar contra '2026-09-29' a secas corta en la
@@ -27,31 +28,37 @@ export function useReportes(comercioId) {
   async function cargarVentas(desde, hasta) {
     if (!comercioId) return null
 
-    const { data: ventas, error } = await supabase
-      .from('ventas')
-      .select('id, fecha, total')
-      .eq('comercio_id', comercioId)
-      .eq('es_saldo_inicial', false)
-      .eq('estado', 'completada')
-      .gte('fecha', inicioDia(desde))
-      .lte('fecha', finDia(hasta))
-      .order('fecha', { ascending: false })
+    const [{ data: ventas, error }, devs] = await Promise.all([
+      supabase
+        .from('ventas')
+        .select('id, fecha, total, devuelto_monto')
+        .eq('comercio_id', comercioId)
+        .eq('es_saldo_inicial', false)
+        .eq('estado', 'completada')
+        .gte('fecha', inicioDia(desde))
+        .lte('fecha', finDia(hasta))
+        .order('fecha', { ascending: false }),
+      cargarDevolucionesRango(comercioId, inicioDia(desde), finDia(hasta)),
+    ])
 
     if (error) throw new Error(error.message)
-    if (!ventas?.length) {
-      return { ventasPorDia: [], topProductos: [], porMedioPago: {}, totalVentas: 0, cantTickets: 0, ticketPromedio: 0, margenBruto: 0, sinCosto: 0 }
+    if (devs.error) throw new Error(devs.error.message)
+    if (!ventas?.length && !devs.data.length) {
+      return { ventasPorDia: [], topProductos: [], porMedioPago: {}, totalVentas: 0, totalDevuelto: 0, cantTickets: 0, ticketPromedio: 0, margenBruto: 0, sinCosto: 0 }
     }
 
     const ids = ventas.map(v => v.id)
 
-    const [{ data: pagos }, { data: items }] = await Promise.all([
+    const [{ data: pagos }, { data: items }] = ids.length ? await Promise.all([
       supabase.from('venta_pagos').select('medio_pago, monto').in('venta_id', ids),
       supabase.from('venta_items')
         .select('producto_id, cantidad, subtotal, producto:productos(nombre, precio_costo)')
         .in('venta_id', ids),
-    ])
+    ]) : [{ data: [] }, { data: [] }]
 
-    const totalVentas    = ventas.reduce((s, v) => s + Number(v.total), 0)
+    // Ventas a su valor original − devoluciones hechas en el período (cuentan el día que se hacen)
+    const totalDevuelto  = devs.total
+    const totalVentas    = ventas.reduce((s, v) => s + totalOriginal(v), 0) - totalDevuelto
     const cantTickets    = ventas.length
     const ticketPromedio = cantTickets ? totalVentas / cantTickets : 0
 
@@ -77,7 +84,12 @@ export function useReportes(comercioId) {
       const dia = diaLocal(v.fecha)
       if (!porDia[dia]) porDia[dia] = { fecha: dia, cant: 0, total: 0 }
       porDia[dia].cant++
-      porDia[dia].total += Number(v.total)
+      porDia[dia].total += totalOriginal(v)
+    })
+    devs.data.forEach(d => {
+      const dia = diaLocal(d.created_at)
+      if (!porDia[dia]) porDia[dia] = { fecha: dia, cant: 0, total: 0 }
+      porDia[dia].total -= Number(d.monto)
     })
     const ventasPorDia = Object.values(porDia).sort((a, b) => b.fecha.localeCompare(a.fecha))
 
@@ -88,7 +100,7 @@ export function useReportes(comercioId) {
     // Productos vendidos sin costo cargado: inflan el margen, hay que avisarlo
     const sinCosto = new Set((items || []).filter(it => it.producto_id && !Number(it.producto?.precio_costo)).map(it => it.producto_id)).size
 
-    return { ventasPorDia, topProductos, porMedioPago, totalVentas, cantTickets, ticketPromedio, margenBruto, sinCosto }
+    return { ventasPorDia, topProductos, porMedioPago, totalVentas, totalDevuelto, cantTickets, ticketPromedio, margenBruto, sinCosto }
   }
 
   async function cargarStock() {
@@ -155,16 +167,19 @@ export function useReportes(comercioId) {
   /* Sólo totales, para comparar con el período anterior */
   async function cargarTotalesVentas(desde, hasta) {
     if (!comercioId) return null
-    const { data, error } = await supabase
-      .from('ventas')
-      .select('total')
-      .eq('comercio_id', comercioId)
-      .eq('es_saldo_inicial', false)
-      .eq('estado', 'completada')
-      .gte('fecha', inicioDia(desde))
-      .lte('fecha', finDia(hasta))
+    const [{ data, error }, devs] = await Promise.all([
+      supabase
+        .from('ventas')
+        .select('total, devuelto_monto')
+        .eq('comercio_id', comercioId)
+        .eq('es_saldo_inicial', false)
+        .eq('estado', 'completada')
+        .gte('fecha', inicioDia(desde))
+        .lte('fecha', finDia(hasta)),
+      cargarDevolucionesRango(comercioId, inicioDia(desde), finDia(hasta)),
+    ])
     if (error) throw new Error(error.message)
-    const total = (data || []).reduce((s, v) => s + Number(v.total), 0)
+    const total = (data || []).reduce((s, v) => s + totalOriginal(v), 0) - devs.total
     const cant  = (data || []).length
     return { totalVentas: total, cantTickets: cant, ticketPromedio: cant ? total / cant : 0 }
   }

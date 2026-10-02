@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { ToastProvider } from '../../hooks/useToast.jsx'
+import { cargarDevolucionesRango, totalOriginal } from '../../lib/devoluciones'
 import Ventas from './Ventas'
 import './PosCaja.css'
 
@@ -70,13 +71,16 @@ function PosCajaContenido({ perfil }) {
   /* Ventas desde la apertura de la caja */
   const cargarStats = useCallback(async () => {
     if (!caja) return
-    const { data } = await supabase.from('ventas')
-      .select('total')
-      .eq('comercio_id', comercioId)
-      .eq('estado', 'completada')
-      .eq('es_saldo_inicial', false)
-      .gte('fecha', caja.fecha_apertura)
-    setStats({ cant: (data || []).length, total: (data || []).reduce((s, v) => s + Number(v.total), 0) })
+    const [{ data }, devs] = await Promise.all([
+      supabase.from('ventas')
+        .select('total, devuelto_monto')
+        .eq('comercio_id', comercioId)
+        .eq('estado', 'completada')
+        .eq('es_saldo_inicial', false)
+        .gte('fecha', caja.fecha_apertura),
+      cargarDevolucionesRango(comercioId, caja.fecha_apertura),
+    ])
+    setStats({ cant: (data || []).length, total: (data || []).reduce((s, v) => s + totalOriginal(v), 0) - devs.total })
   }, [caja, comercioId])
 
   useEffect(() => { cargarStats() }, [cargarStats])

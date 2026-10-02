@@ -1439,3 +1439,47 @@
 .total-row--total > span:last-child { letter-spacing: -.02em; }
 .pos-btn-cobrar { border-radius: 8px !important; }
 .pos-btn-cobrar:not(:disabled) { box-shadow: none; }
+
+/* ════ Devolución (modal de detalle) ════ */
+.modal-detalle .btn--sm { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+.detalle-devuelto {
+  margin-left: 8px;
+  font-size: 11.5px;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+.devol-cant { display: inline-flex; align-items: center; gap: 6px; }
+.devol-cant .field-input { width: 72px; text-align: right; font-family: var(--font-family-num); }
+.devol-panel .modal-detalle__section-title { display: flex; align-items: center; gap: 6px; }
+.devol-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  margin-bottom: 8px;
+}
+.devol-resumen__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+.devol-resumen__row--total { font-weight: 600; color: var(--color-text-primary); }
+.devol-resumen__nota {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+.devol-opciones { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.devol-check { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+.devol-medio { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+.badge-devuelto { margin-left: 4px; }

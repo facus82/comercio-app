@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { cargarDevolucionesRango, totalOriginal } from '../lib/devoluciones'
 
 function buildMediosPorCC(ccs, items, pagos) {
   const ventaMap = {}
@@ -48,10 +49,10 @@ export function useCajaMetricas(comercioId, fechaApertura) {
   async function cargar() {
     setLoadingMetricas(true)
 
-    const [resVentas, resPagos, resComprobantes, resItems, resCCs, resPagosEf] = await Promise.all([
+    const [resVentas, resPagos, resComprobantes, resItems, resCCs, resPagosEf, resDevs] = await Promise.all([
       supabase
         .from('ventas')
-        .select('id, total')
+        .select('id, total, devuelto_monto')
         .eq('comercio_id', comercioId)
         .eq('es_saldo_inicial', false)
         .eq('estado', 'completada')
@@ -94,6 +95,8 @@ export function useCajaMetricas(comercioId, fechaApertura) {
         .eq('venta.estado', 'completada')
         .gte('venta.fecha', fechaApertura)
         .order('created_at', { ascending: true }),
+
+      cargarDevolucionesRango(comercioId, fechaApertura),
     ])
 
     const ventas       = resVentas.data       || []
@@ -103,7 +106,9 @@ export function useCajaMetricas(comercioId, fechaApertura) {
     const ccs          = resCCs.data          || []
     const pagosEf      = resPagosEf.data      || []
 
-    const totalVendido    = ventas.reduce((s, v) => s + Number(v.total), 0)
+    // Ventas de la caja a su valor original − devoluciones hechas durante la caja
+    const totalDevuelto   = resDevs.total
+    const totalVendido    = ventas.reduce((s, v) => s + totalOriginal(v), 0) - totalDevuelto
     const cantOps         = ventas.length
     const cantComprobantes = comprobantes.length
 
@@ -127,7 +132,7 @@ export function useCajaMetricas(comercioId, fechaApertura) {
       return { ...cc, total, cantItems: itemsCC.length, mediosPago: mediosPorCC[cc.id] || {} }
     })
 
-    setMetricas({ totalVendido, cantOps, cantComprobantes, porMedioPago, porCC })
+    setMetricas({ totalVendido, totalDevuelto, cantOps, cantComprobantes, porMedioPago, porCC })
     setCentrosCostos(ccs)
     setPagosEfectivo(pagosEf)
     setLoadingMetricas(false)

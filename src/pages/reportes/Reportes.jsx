@@ -332,7 +332,7 @@ export default function Reportes() {
             <div className="reportes-kpis">
               <Kpi icon="ti-cash" label="Total vendido" tono="ok" value={fmt$(ventas.totalVentas)}
                 delta={variacion(ventas.totalVentas, previo?.totalVentas)} deltaLabel={deltaLabel}
-                sub={`${diasConVenta.length} día${diasConVenta.length !== 1 ? 's' : ''} con ventas`} />
+                sub={`${diasConVenta.length} día${diasConVenta.length !== 1 ? 's' : ''} con ventas${ventas.totalDevuelto > 0 ? ` · devoluciones −${fmt$(ventas.totalDevuelto)}` : ''}`} />
               <Kpi icon="ti-receipt" label="Tickets" value={ventas.cantTickets}
                 delta={variacion(ventas.cantTickets, previo?.cantTickets)} deltaLabel={deltaLabel} />
               <Kpi icon="ti-shopping-bag" label="Ticket promedio" value={fmt$(ventas.ticketPromedio)}
