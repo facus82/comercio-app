@@ -6,6 +6,11 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 
 ## 2026-10-02
 
+### Combos
+- **Combos que descuentan sus componentes**: en la ficha del producto, **"Es combo (se arma con otros productos)"** y se cargan los productos que lo forman con su cantidad. Al **vender, anular o devolver** un combo se mueve el stock de cada componente (en el historial: "Venta #… (combo X)"); el combo no tiene stock propio. La ficha, la lista de Stock y el buscador del POS muestran cuántos se pueden armar ("arma N") y lo marcan sin stock si falta un componente. Un combo no puede tener otro combo adentro. Probado: armar un combo de 2 marcadores + 1 cuaderno, vender, devolver, vender 2 y anular; cada componente se movió exacto. Migración: `017_combos.sql`. (`1709911`)
+- Origen: en *Un Buen Mate A&B* los combos estaban cargados como productos sueltos, con el contenido sólo en la descripción, así que venderlos no descontaba el mate, la bombilla, etc. Se corrigió además la unidad de "Combo 2" que una anulación del 01/10 (anterior al arreglo) no había repuesto, con un ajuste registrado en el historial.
+- Fix: **guardar la ficha de un producto pisaba el stock** con el valor que tenía la pantalla al abrirse; si se corregía un precio con la pantalla abierta desde antes de varias ventas, el stock volvía atrás. Ahora el stock sólo se guarda si se cambió a mano. Probado. (`1709911`)
+
 ### Ventas
 - **Anular una venta devuelve los productos al stock**, con un movimiento de entrada "Anulación venta #N" en el historial. Antes la venta quedaba anulada pero el stock seguía descontado. (`dff58ed`)
 - Anular ahora **pide confirmación** (antes bastaba un click) y avisa si salió bien. (`dff58ed`)
@@ -39,7 +44,7 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 - La clave de servicio de Supabase en `.env` pasa a llamarse `SUPABASE_SERVICE_KEY` (sin `VITE_`), así Vite nunca puede publicarla aunque alguien la use por error en el código.
 
 ### Configuración requerida en Supabase
-Ejecutar en SQL Editor: `013_devoluciones.sql`, `014_stock_ventas.sql`, `015_usuarios_policy.sql` y `016_usuarios_inactivos.sql`; publicar `admin-ops` (`npx supabase functions deploy admin-ops`) (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
+Ejecutar en SQL Editor: `013_devoluciones.sql`, `014_stock_ventas.sql`, `015_usuarios_policy.sql`, `016_usuarios_inactivos.sql` y `017_combos.sql` (todas aplicadas); publicar `admin-ops` (`npx supabase functions deploy admin-ops`) (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
 
 ---
 
