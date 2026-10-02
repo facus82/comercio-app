@@ -9,6 +9,7 @@ import PromocionesModal from './PromocionesModal'
 import ComparadorProveedorModal from './ComparadorProveedorModal'
 import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import { ProductoThumb } from '../../components/shared/ImagenProducto'
+import { combosDisponibles } from '../../lib/combos'
 import './Stock.css'
 
 const fmt$ = v =>
@@ -33,8 +34,11 @@ export default function Stock() {
     loading, crear, actualizar, actualizarMasivo, toggleActivo, recargar,
     cargarProveedoresProducto, agregarProveedorProducto,
     eliminarProveedorProducto, marcarPrincipalProducto,
-    crearCategoria, crearSubcategoria,
+    crearCategoria, crearSubcategoria, guardarComponentes,
   } = useProductos(comercioId, perfil?.id)
+
+  // Para calcular cuántos combos se pueden armar con el stock de sus componentes
+  const productoPorId = useMemo(() => Object.fromEntries(productos.map(p => [p.id, p])), [productos])
 
   const [busqueda,          setBusqueda]          = useState('')
   const [filtroCategoria,   setFiltroCategoria]   = useState(null)
@@ -106,6 +110,8 @@ export default function Stock() {
           agregarProveedorProducto={agregarProveedorProducto}
           eliminarProveedorProducto={eliminarProveedorProducto}
           marcarPrincipalProducto={marcarPrincipalProducto}
+          productos={productos}
+          guardarComponentes={guardarComponentes}
         />
       </div>
     )
@@ -260,6 +266,9 @@ export default function Stock() {
                         {p.es_servicio && (
                           <span className="badge badge--info">Servicio</span>
                         )}
+                        {p.es_combo && (
+                          <span className="badge badge--info">Combo</span>
+                        )}
                       </span>
                     </td>
                     <td>
@@ -272,7 +281,16 @@ export default function Stock() {
                     <td className="td-right td-muted">{fmt$(p.precio_costo)}</td>
                     <td className="td-right stock-precio-venta">{fmt$(p.precio_venta)}</td>
                     <td>
-                      {sb ? (
+                      {p.es_combo ? (() => {
+                        const n = combosDisponibles(p, id => productoPorId[id])
+                        if (!p.componentes?.length) return <span className="badge badge--warning">Sin componentes</span>
+                        return n === null
+                          ? <span className="td-muted">—</span>
+                          : <span className={`badge ${n > 0 ? 'badge--success' : 'badge--danger'}`}
+                              title="Combos que se pueden armar con el stock de los componentes">
+                              {n > 0 ? `arma ${n}` : 'Sin stock'}
+                            </span>
+                      })() : sb ? (
                         <span className={`badge ${sb.cls}`}>
                           {sb.label === 'Sin stock' || sb.label === 'Stock bajo'
                             ? sb.label

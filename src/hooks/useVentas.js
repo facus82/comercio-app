@@ -77,7 +77,7 @@ export function useVentas(comercioId, perfilId, desde, hasta = desde) {
 
     // Salida de stock: en la base (014_stock_ventas.sql), porque el cajero no puede escribir productos
     // Si falla, la venta igual quedó guardada: se avisa en vez de devolver error (evita cobrarla dos veces)
-    const { error: errS } = await supabase.rpc('descontar_stock_venta', { p_venta_id: venta.id })
+    const { data: movidos, error: errS } = await supabase.rpc('descontar_stock_venta', { p_venta_id: venta.id })
     const aviso = errS ? `La venta se guardó, pero no se pudo descontar el stock: ${errS.message}` : null
 
     // Promociones aplicadas
@@ -89,7 +89,7 @@ export function useVentas(comercioId, perfilId, desde, hasta = desde) {
 
     const ventaConPagos = { ...venta, pagos: pagos.map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) })) }
     setVentas(prev => [ventaConPagos, ...prev])
-    return { data: venta, aviso }
+    return { data: venta, aviso, movidos: movidos || [] }
   }
 
   // Anula la venta y devuelve al stock lo que había salido, todo en la base (014_stock_ventas.sql).

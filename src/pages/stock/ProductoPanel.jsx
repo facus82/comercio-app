@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { borrarImagenProducto } from '../../lib/imagenes'
 import { ImagenProductoField } from '../../components/shared/ImagenProducto'
 import EscanerCodigo from '../../components/shared/EscanerCodigo'
+import { combosDisponibles } from '../../lib/combos'
 import './ProductoPanel.css'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'caja', 'pack', 'docena']
@@ -41,7 +42,7 @@ const DEFAULTS = {
   precio_costo: '', precio_venta: '', precio_mayorista: '',
   iva_porcentaje: 21,
   stock_actual: 0, stock_minimo: 0, stock_maximo: '',
-  controla_stock: true, controla_lotes: false, es_servicio: false, activo: true,
+  controla_stock: true, controla_lotes: false, es_servicio: false, es_combo: false, activo: true,
   imagen_url: '',
 }
 
@@ -67,6 +68,7 @@ function toForm(p) {
     controla_stock:  p.controla_stock  ?? true,
     controla_lotes:  p.controla_lotes  ?? false,
     es_servicio:     p.es_servicio     ?? false,
+    es_combo:        p.es_combo        ?? false,
     activo:          p.activo          ?? true,
     imagen_url:      p.imagen_url      ?? '',
   }
@@ -80,6 +82,88 @@ function initCalc(producto) {
   const neto  = iva > 0 ? venta / (1 + iva / 100) : venta  // extraer neto para calcular margen real
   const margen = costo > 0 ? Math.round(((neto / costo) - 1) * 100) : 30
   return { compra: costo || '', flete: '', margen: Math.max(0, margen) }
+}
+
+/* Componentes de un combo: buscador para agregar productos + cantidad de cada uno */
+function ComboSection({ comboId, productos, componentes, onChange }) {
+  const [busq, setBusq] = useState('')
+  const porId = useMemo(() => Object.fromEntries(productos.map(p => [p.id, p])), [productos])
+
+  const resultados = useMemo(() => {
+    const q = busq.trim().toLowerCase()
+    if (q.length < 2) return []
+    return productos
+      .filter(p => p.activo && !p.es_combo && p.id !== comboId && !componentes.some(c => c.componente_id === p.id))
+      .filter(p => p.nombre.toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q) || (p.codigo_barras || '').includes(q))
+      .slice(0, 8)
+  }, [busq, productos, componentes, comboId])
+
+  const disponibles = combosDisponibles({ componentes }, id => porId[id])
+
+  function agregar(p) {
+    onChange([...componentes, { componente_id: p.id, cantidad: 1 }])
+    setBusq('')
+  }
+  const setCant = (id, v) => onChange(componentes.map(c => c.componente_id === id ? { ...c, cantidad: v } : c))
+  const quitar  = id => onChange(componentes.filter(c => c.componente_id !== id))
+
+  return (
+    <div className="form-section">
+      <p className="form-section-title"><i className="ti ti-packages" /> Componentes del combo</p>
+      <p className="field-hint">
+        Al vender, anular o devolver el combo se mueve el stock de estos productos. El combo no tiene stock propio.
+      </p>
+
+      {componentes.length > 0 && (
+        <ul className="combo-lista">
+          {componentes.map(c => {
+            const p = porId[c.componente_id]
+            return (
+              <li key={c.componente_id} className="combo-item">
+                <span className="combo-item__nombre">
+                  {p?.nombre || 'Producto'}
+                  {p && p.controla_stock !== false && (
+                    <span className="combo-item__stock">stock {Number(p.stock_actual)}</span>
+                  )}
+                </span>
+                <input className="field-input combo-item__cant" type="number" min="0" step="any"
+                  value={c.cantidad} onChange={e => setCant(c.componente_id, e.target.value)}
+                  aria-label={`Cantidad de ${p?.nombre || 'componente'}`} />
+                <button type="button" className="btn-icon btn-icon--danger" title="Quitar"
+                  onClick={() => quitar(c.componente_id)}>
+                  <i className="ti ti-x" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <div className="combo-buscar">
+        <input className="field-input" placeholder="Buscar producto para agregar (nombre o código)…"
+          value={busq} onChange={e => setBusq(e.target.value)} />
+        {resultados.length > 0 && (
+          <div className="combo-resultados">
+            {resultados.map(p => (
+              <button type="button" key={p.id} className="combo-resultado" onClick={() => agregar(p)}>
+                <span>{p.nombre}</span>
+                <span className="td-muted">{p.controla_stock !== false ? `stock ${Number(p.stock_actual)}` : 'sin control de stock'}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {componentes.length > 0 && (
+        <p className="combo-disponibles">
+          <i className="ti ti-box" />
+          {disponibles === null
+            ? 'Ningún componente controla stock: no hay límite para armar.'
+            : `Con el stock actual se pueden armar ${disponibles} combo${disponibles !== 1 ? 's' : ''}.`}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function ProveedoresSection({ productoId, proveedores, cargar, onAgregar, onEliminar, onPrincipal }) {
@@ -265,6 +349,7 @@ export default function ProductoPanel({
   crearCategoria, crearSubcategoria,
   cargarProveedoresProducto, agregarProveedorProducto,
   eliminarProveedorProducto, marcarPrincipalProducto,
+  productos = [], guardarComponentes,
 }) {
   const { perfil } = useAuth()
   const comercioId = perfil?.comercio?.id
@@ -275,6 +360,10 @@ export default function ProductoPanel({
   const [enPromo, setEnPromo] = useState(!!(producto?.precio_mayorista))
   const [saving, setSaving] = useState(false)
   const [error, setError]  = useState('')
+
+  /* ── Combo: componentes [{ componente_id, cantidad }] ── */
+  const [componentes, setComponentes] = useState(() =>
+    (producto?.componentes || []).map(c => ({ componente_id: c.componente_id, cantidad: Number(c.cantidad) })))
 
   /* ── Lotes ── */
   const [lotes,         setLotes]         = useState([])
@@ -480,6 +569,7 @@ export default function ProductoPanel({
 
   useEffect(() => {
     setForm(toForm(producto))
+    setComponentes((producto?.componentes || []).map(c => ({ componente_id: c.componente_id, cantidad: Number(c.cantidad) })))
     setCalc(initCalc(producto))
     setPrecioManual(!!producto)
     setEnPromo(!!(producto?.precio_mayorista))
@@ -540,6 +630,8 @@ export default function ProductoPanel({
     e.preventDefault()
     if (!form.nombre.trim())     { setError('El nombre es obligatorio.');        return }
     if (!form.precio_venta)      { setError('El precio de venta es obligatorio.'); return }
+    if (form.es_combo && !componentes.length) { setError('Agregá los productos que forman el combo.'); return }
+    if (form.es_combo && componentes.some(c => !(Number(c.cantidad) > 0))) { setError('Cada componente del combo necesita una cantidad mayor a 0.'); return }
 
     setSaving(true); setError('')
 
@@ -560,9 +652,11 @@ export default function ProductoPanel({
       stock_actual:    Number(form.stock_actual)   || 0,
       stock_minimo:    Number(form.stock_minimo)   || 0,
       stock_maximo:    form.stock_maximo ? Number(form.stock_maximo) : null,
-      controla_stock:  form.controla_stock,
-      controla_lotes:  form.controla_lotes,
+      // El combo no tiene stock propio: se mueve el de sus componentes
+      controla_stock:  form.es_combo ? false : form.controla_stock,
+      controla_lotes:  form.es_combo ? false : form.controla_lotes,
       es_servicio:     form.es_servicio,
+      es_combo:        form.es_combo,
       activo:          form.activo,
       imagen_url:      form.imagen_url || null,
     }
@@ -570,6 +664,13 @@ export default function ProductoPanel({
     const res = producto
       ? await onActualizar(producto.id, datos, producto)
       : await onCrear(datos)
+
+    // Componentes: se guardan si es combo, o se borran si dejó de serlo
+    if (!res.error && res.data && (form.es_combo || producto?.componentes?.length)) {
+      const resC = await guardarComponentes(res.data.id, form.es_combo ? componentes : [])
+      if (resC.error) { setSaving(false); setError(resC.error.message || 'No se pudieron guardar los componentes.'); return }
+      res.data = { ...res.data, componentes: resC.data }
+    }
 
     setSaving(false)
     // La foto anterior se borra recién cuando el cambio quedó guardado
@@ -787,8 +888,18 @@ export default function ProductoPanel({
                 </div>
               </div>
 
+              {/* Componentes del combo (reemplaza a Stock: el combo no tiene stock propio) */}
+              {form.es_combo && (
+                <ComboSection
+                  comboId={producto?.id}
+                  productos={productos}
+                  componentes={componentes}
+                  onChange={setComponentes}
+                />
+              )}
+
               {/* Stock */}
-              {!form.es_servicio && (
+              {!form.es_servicio && !form.es_combo && (
                 <div className="form-section">
                   <p className="form-section-title">Stock</p>
                   <div className="form-grid form-grid--3">
@@ -826,17 +937,27 @@ export default function ProductoPanel({
                     Es servicio
                   </label>
                   <label className="field-check">
-                    <input type="checkbox" checked={form.controla_stock}
-                      onChange={e => setF('controla_stock', e.target.checked)}
+                    <input type="checkbox" checked={form.es_combo}
+                      onChange={e => setF('es_combo', e.target.checked)}
                       disabled={form.es_servicio} />
-                    Controla stock
+                    Es combo (se arma con otros productos)
                   </label>
-                  <label className="field-check">
-                    <input type="checkbox" checked={form.controla_lotes}
-                      onChange={e => setF('controla_lotes', e.target.checked)}
-                      disabled={form.es_servicio} />
-                    Lotes / vencimientos
-                  </label>
+                  {!form.es_combo && (
+                    <>
+                      <label className="field-check">
+                        <input type="checkbox" checked={form.controla_stock}
+                          onChange={e => setF('controla_stock', e.target.checked)}
+                          disabled={form.es_servicio} />
+                        Controla stock
+                      </label>
+                      <label className="field-check">
+                        <input type="checkbox" checked={form.controla_lotes}
+                          onChange={e => setF('controla_lotes', e.target.checked)}
+                          disabled={form.es_servicio} />
+                        Lotes / vencimientos
+                      </label>
+                    </>
+                  )}
                 </div>
                 <div className="field" style={{ marginTop: 8 }}>
                   <label className="field-label">Notas internas</label>

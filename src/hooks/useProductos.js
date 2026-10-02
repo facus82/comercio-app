@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { SELECT_COMPONENTES } from '../lib/combos'
 
 export function useProductos(comercioId, perfilId) {
   const [productos, setProductos]           = useState([])
@@ -22,7 +23,7 @@ export function useProductos(comercioId, perfilId) {
     const [resP, resC, resSub, resProv, resCCs] = await Promise.all([
       supabase
         .from('productos')
-        .select('*, categoria:categorias(nombre, color), subcategoria:subcategorias(id, nombre)')
+        .select(`*, categoria:categorias(nombre, color), subcategoria:subcategorias(id, nombre), ${SELECT_COMPONENTES}`)
         .eq('comercio_id', comercioId)
         .order('nombre'),
       supabase
@@ -64,7 +65,7 @@ export function useProductos(comercioId, perfilId) {
     const { data, error } = await supabase
       .from('productos')
       .insert({ ...datos, comercio_id: comercioId })
-      .select('*, categoria:categorias(nombre, color)')
+      .select(`*, categoria:categorias(nombre, color), ${SELECT_COMPONENTES}`)
       .single()
 
     if (error) return { error }
@@ -86,11 +87,18 @@ export function useProductos(comercioId, perfilId) {
   }
 
   async function actualizar(id, datos, original) {
+    // El stock sólo se escribe si se cambió a mano en la ficha: si no, guardar un precio
+    // con la pantalla abierta desde antes pisaría las ventas hechas mientras tanto.
+    if (Number(datos.stock_actual) === Number(original.stock_actual)) {
+      const { stock_actual, ...resto } = datos
+      datos = resto
+    }
+
     const { data, error } = await supabase
       .from('productos')
       .update(datos)
       .eq('id', id)
-      .select('*, categoria:categorias(nombre, color)')
+      .select(`*, categoria:categorias(nombre, color), ${SELECT_COMPONENTES}`)
       .single()
 
     if (error) return { error }
@@ -113,7 +121,7 @@ export function useProductos(comercioId, perfilId) {
     }
 
     // Registrar movimiento de stock si cambió
-    const stockDif = Number(datos.stock_actual) - Number(original.stock_actual)
+    const stockDif = datos.stock_actual === undefined ? 0 : Number(datos.stock_actual) - Number(original.stock_actual)
     if (stockDif !== 0) {
       await supabase.from('stock_movimientos').insert({
         comercio_id:     comercioId,
@@ -269,8 +277,23 @@ export function useProductos(comercioId, perfilId) {
     return { data }
   }
 
+  // Reemplaza los componentes de un combo. lista: [{ componente_id, cantidad }]
+  async function guardarComponentes(comboId, lista) {
+    const { error: errD } = await supabase.from('producto_componentes').delete().eq('combo_id', comboId)
+    if (errD) return { error: errD }
+    if (lista.length) {
+      const { error } = await supabase.from('producto_componentes')
+        .insert(lista.map(c => ({ combo_id: comboId, componente_id: c.componente_id, cantidad: Number(c.cantidad) })))
+      if (error) return { error }
+    }
+    const componentes = lista.map(c => ({ componente_id: c.componente_id, cantidad: Number(c.cantidad) }))
+    setProductos(prev => prev.map(p => p.id === comboId ? { ...p, componentes } : p))
+    return { data: componentes }
+  }
+
   return {
     productos,
+    guardarComponentes,
     crearCategoria,
     crearSubcategoria,
     categorias,

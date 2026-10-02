@@ -8,6 +8,7 @@ import { SkeletonTableBody } from '../../components/shared/Skeleton'
 import { cargarDeudas, resumirPorCliente, sumarDias, hoyISO } from '../../hooks/useCuentasCobrar'
 import ClientePanel from '../clientes/ClientePanel'
 import { ProductoThumb } from '../../components/shared/ImagenProducto'
+import { SELECT_COMPONENTES, combosDisponibles } from '../../lib/combos'
 import EscanerCodigo from '../../components/shared/EscanerCodigo'
 import './Ventas.css'
 
@@ -141,6 +142,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
 
   /* ── Catálogo ── */
   const [productos,     setProductos]     = useState([])
+  const productoPorId = useMemo(() => Object.fromEntries(productos.map(p => [p.id, p])), [productos])
   const [clientes,      setClientes]      = useState([])
   const [cargandoProds, setCargandoProds] = useState(false)
 
@@ -205,20 +207,26 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     if (!confirm(`¿Anular la venta ${v.numero} por ${fmt$(v.total)}? Los productos vuelven al stock.`)) return false
     const res = await anular(v.id)
     if (res.error) { toast?.error(res.error.message || 'No se pudo anular la venta.'); return false }
-    const repuestos = new Map(res.data.repuestos.map(r => [r.producto_id, r.cantidad]))
-    setProductos(prev => prev.map(p => repuestos.has(p.id)
-      ? { ...p, stock_actual: Number(p.stock_actual) + repuestos.get(p.id) } : p))
+    aplicarMovidos(res.data.repuestos)
     toast?.success(`Venta ${v.numero} anulada`)
     return true
+  }
+
+  // Refleja en pantalla el stock que la base movió de verdad: [{ producto_id, cantidad con signo }]
+  // (en un combo vienen sus componentes, no el combo)
+  function aplicarMovidos(movidos = []) {
+    const delta = new Map()
+    movidos.forEach(m => delta.set(m.producto_id, (delta.get(m.producto_id) || 0) + Number(m.cantidad)))
+    if (!delta.size) return
+    setProductos(prev => prev.map(p => delta.has(p.id)
+      ? { ...p, stock_actual: Number(p.stock_actual) + delta.get(p.id) } : p))
   }
 
   async function handleDevolver(v, items, opciones) {
     const res = await devolver(v.id, items, opciones)
     if (res.error) return res
     const d = res.data
-    const devueltos = new Map(d.items.map(it => [it.producto_id, Number(it.cantidad)]))
-    setProductos(prev => prev.map(p => devueltos.has(p.id) && p.controla_stock
-      ? { ...p, stock_actual: Number(p.stock_actual) + devueltos.get(p.id) } : p))
+    aplicarMovidos(d.movidos)
     const partes = []
     if (d.aplicado > 0.009)  partes.push(`${fmt$(d.aplicado)} descontado de la deuda`)
     if (d.reintegro > 0.009) partes.push(`${fmt$(d.reintegro)} a devolver al cliente${d.en_caja ? ' (retiro de caja)' : ''}`)
@@ -244,7 +252,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     const [resProds, resClis, resPromos] = await Promise.all([
       supabase
         .from('productos')
-        .select('id, nombre, codigo, codigo_barras, imagen_url, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color)')
+        .select(`id, nombre, codigo, codigo_barras, imagen_url, precio_venta, precio_mayorista, iva_porcentaje, stock_actual, stock_minimo, unidad_medida, controla_stock, es_combo, categoria_id, subcategoria_id, categoria:categorias(id, nombre), centro_costo:centros_costos(id, nombre, color), ${SELECT_COMPONENTES}`)
         .eq('comercio_id', comercioId)
         .eq('activo', true)
         .order('nombre'),
@@ -726,10 +734,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     if (!modoCaja) { resetPos(); setVista('lista'); return }
 
     // Modo caja: queda listo para la próxima venta
-    const vendidos = new Map()
-    carrito.forEach(it => { if (!it.esLibre) vendidos.set(it.producto.id, (vendidos.get(it.producto.id) || 0) + it.cantidad) })
-    setProductos(prev => prev.map(p => vendidos.has(p.id) && p.controla_stock
-      ? { ...p, stock_actual: Number(p.stock_actual) - vendidos.get(p.id) } : p))
+    aplicarMovidos(res.movidos)
     toast?.success(
       `Venta ${res.data.numero} · ${fmt$(totales.total)}${totales.vuelto > 0.009 ? ` · vuelto ${fmt$(totales.vuelto)}` : ''}`,
       totales.vuelto > 0.009 ? 8000 : 4000,
@@ -879,7 +884,11 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
               <div className="pos-dropdown">
                 {dropdownResultados.map(prod => {
                   const esPromo = Number(prod.precio_mayorista) > 0 && Number(prod.precio_mayorista) < Number(prod.precio_venta)
-                  const sinStock = prod.controla_stock && Number(prod.stock_actual) <= 0
+                  // Combo: cuántos se pueden armar con el stock de sus componentes
+                  const armables = prod.es_combo ? combosDisponibles(prod, id => productoPorId[id]) : null
+                  const sinStock = prod.es_combo
+                    ? armables !== null && armables <= 0
+                    : prod.controla_stock && Number(prod.stock_actual) <= 0
                   return (
                     <button
                       key={prod.id}
@@ -908,7 +917,12 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                         <span className={`pos-dd-precio${esPromo ? ' pos-dd-precio--promo' : ''}`}>
                           {fmt$(esPromo ? prod.precio_mayorista : prod.precio_venta)}
                         </span>
-                        {prod.controla_stock && (
+                        {prod.es_combo && armables !== null && (
+                          <span className={`pos-dd-stock${armables <= 1 ? ' pos-dd-stock--bajo' : ''}`}>
+                            combo · arma {armables}
+                          </span>
+                        )}
+                        {prod.controla_stock && !prod.es_combo && (
                           <span className={`pos-dd-stock${Number(prod.stock_actual) <= Number(prod.stock_minimo) ? ' pos-dd-stock--bajo' : ''}`}>
                             {prod.stock_actual} {prod.unidad_medida || 'u.'}
                           </span>
