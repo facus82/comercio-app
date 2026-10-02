@@ -29,8 +29,11 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 ### Stock
 - **Agregar un lote** desde la ficha del producto registra el movimiento de stock (antes subía el stock sin dejar rastro en el historial). (`dff58ed`)
 
+### Seguridad
+- **Crítico — permisos de usuarios**: la regla de escritura de la tabla `usuarios` sólo pedía ser propietario, sin mirar el comercio ni el rol asignado; un propietario podía modificar usuarios de otros comercios y asignarse cualquier rol. Ahora un propietario sólo administra usuarios de **su** comercio, sólo asigna roles de comercio (nunca superadmin), no puede mover usuarios a otro comercio ni borrarse a sí mismo. Verificado en producción: quedan sólo las 4 reglas nuevas. Migración: `015_usuarios_policy.sql`.
+
 ### Configuración requerida en Supabase
-Ejecutar en SQL Editor: `013_devoluciones.sql` y `014_stock_ventas.sql` (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
+Ejecutar en SQL Editor: `013_devoluciones.sql`, `014_stock_ventas.sql` y `015_usuarios_policy.sql` (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
 
 ---
 
