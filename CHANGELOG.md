@@ -9,7 +9,13 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 ### Ventas
 - **Anular una venta devuelve los productos al stock**, con un movimiento de entrada "Anulación venta #N" en el historial. Antes la venta quedaba anulada pero el stock seguía descontado. (`dff58ed`)
 - Anular ahora **pide confirmación** (antes bastaba un click) y avisa si salió bien. (`dff58ed`)
-- Una venta a Cta. Cte. a la que el cliente **ya le pagó algo no se puede anular**: avisa cuánto pagó, porque ese dinero quedaría sin imputar. (`dff58ed`)
+- Una venta a Cta. Cte. a la que el cliente **ya le pagó algo no se puede anular**: avisa cuánto pagó (sin pedir confirmación antes) y sugiere usar **Devolución**. (`dff58ed`, `729927c`)
+- **Devoluciones parciales o totales**: botón **"Devolución"** en el detalle de la venta. Se indica cuánto devuelve de cada producto (o "Devuelve todo"); lo devuelto vuelve al stock y la venta queda con lo que el cliente se llevó (descuentos y recargos se prorratean). Antes de confirmar se ve el valor y a dónde va la plata. (`729927c`)
+- La plata devuelta se aplica en este orden: **1)** lo que falte pagar de esa venta en Cta. Cte., **2)** otras deudas del cliente, la que vence antes primero (se puede destildar), **3)** lo que sobra se le devuelve; en **efectivo con caja abierta** sale como **retiro de caja**, así el arqueo cierra. (`729927c`)
+- Las ventas con devolución llevan la marca **"devolución"** en el listado, y el detalle muestra qué se devolvió y cuándo. En la cuenta del cliente, la devolución aparece en el historial de la deuda. (`729927c`)
+
+### Reportes, dashboard y caja
+- **Las devoluciones cuentan el día en que se hacen**: cada venta suma su total original en su fecha y la devolución resta en la suya. Así el reporte de un día no cambia porque al otro día devolvieron algo. Aplica a Reportes (con el aviso "devoluciones −$X"), ventas del período en el Dashboard, "Total vendido" de Caja y la caja del POS. (`729927c`)
 
 ### Compras y proveedores
 - **"Revertir a pendiente"** también revierte los pagos registrados (queda un movimiento "Reversión de pagos" en la cuenta del proveedor). Antes la compra volvía a pendiente pero los pagos seguían descontando del saldo. (`dff58ed`)
@@ -18,6 +24,9 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 
 ### Stock
 - **Agregar un lote** desde la ficha del producto registra el movimiento de stock (antes subía el stock sin dejar rastro en el historial). (`dff58ed`)
+
+### Configuración requerida en Supabase
+Ejecutar en SQL Editor: `013_devoluciones.sql` (ya aplicado).
 
 ---
 
