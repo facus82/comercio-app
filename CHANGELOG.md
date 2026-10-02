@@ -4,6 +4,23 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 
 ---
 
+## 2026-10-02
+
+### Ventas
+- **Anular una venta devuelve los productos al stock**, con un movimiento de entrada "Anulación venta #N" en el historial. Antes la venta quedaba anulada pero el stock seguía descontado. (`dff58ed`)
+- Anular ahora **pide confirmación** (antes bastaba un click) y avisa si salió bien. (`dff58ed`)
+- Una venta a Cta. Cte. a la que el cliente **ya le pagó algo no se puede anular**: avisa cuánto pagó, porque ese dinero quedaría sin imputar. (`dff58ed`)
+
+### Compras y proveedores
+- **"Revertir a pendiente"** también revierte los pagos registrados (queda un movimiento "Reversión de pagos" en la cuenta del proveedor). Antes la compra volvía a pendiente pero los pagos seguían descontando del saldo. (`dff58ed`)
+- **"A pagar proveedores"** del Dashboard muestra lo que realmente se debe: las compras con pago parcial suman sólo lo que falta. (`dff58ed`)
+- **Registrar pago** desde el Dashboard tiene en cuenta los pagos anteriores: muestra y precarga lo pendiente, no deja pagar de más y marca la compra como pagada al completar el total. (`dff58ed`)
+
+### Stock
+- **Agregar un lote** desde la ficha del producto registra el movimiento de stock (antes subía el stock sin dejar rastro en el historial). (`dff58ed`)
+
+---
+
 ## 2026-10-01
 
 ### Ventas / POS
