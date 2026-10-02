@@ -120,7 +120,7 @@ VITE_SUPABASE_URL=https://<proyecto>.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...          # clave pública (anon)
 ```
 
-> ⚠️ `VITE_SUPABASE_SERVICE_KEY` **ya no es necesaria en el frontend**.  
+> ⚠️ La service_role key **no se usa en el frontend**. En `.env` se llama `SUPABASE_SERVICE_KEY` (sin `VITE_`, para que Vite nunca la publique) y sólo sirve para scripts locales.  
 > Las operaciones admin se ejecutan en la Edge Function `admin-ops` (server-side).  
 > La `service_role` key vive como secreto en Supabase y nunca llega al browser.
 
@@ -203,7 +203,7 @@ git push origin master
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-> `VITE_SUPABASE_SERVICE_KEY` **NO** debe estar en Vercel (fue removida por seguridad).
+> La service_role key (`SUPABASE_SERVICE_KEY`) **NO** debe estar en Vercel.
 
 ---
 
