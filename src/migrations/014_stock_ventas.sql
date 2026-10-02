@@ -23,7 +23,9 @@ DECLARE
   r             RECORD;
   v_out         JSONB := '[]'::jsonb;
 BEGIN
-  SELECT comercio_id, rol INTO v_comercio_id, v_rol FROM usuarios WHERE id = v_uid;
+  -- auth_*() devuelven NULL si el usuario o su comercio están desactivados (016)
+  v_comercio_id := auth_comercio_id();
+  v_rol         := auth_rol();
   IF v_comercio_id IS NULL OR v_rol NOT IN ('propietario', 'cajero') THEN
     RAISE EXCEPTION 'No tenés permiso para registrar ventas.';
   END IF;
@@ -84,7 +86,9 @@ DECLARE
   r             RECORD;
   v_out         JSONB := '[]'::jsonb;
 BEGIN
-  SELECT comercio_id, rol INTO v_comercio_id, v_rol FROM usuarios WHERE id = v_uid;
+  -- auth_*() devuelven NULL si el usuario o su comercio están desactivados (016)
+  v_comercio_id := auth_comercio_id();
+  v_rol         := auth_rol();
   IF v_comercio_id IS NULL OR v_rol NOT IN ('propietario', 'cajero') THEN
     RAISE EXCEPTION 'No tenés permiso para anular ventas.';
   END IF;

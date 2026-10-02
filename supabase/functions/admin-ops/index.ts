@@ -118,6 +118,17 @@ Deno.serve(async (req: Request) => {
     const { id, activo } = body as any
     const { error } = await admin.from('comercios').update({ activo }).eq('id', id)
     if (error) return json({ error: error.message }, 500)
+
+    // Suspender el comercio bloquea el login de todos sus usuarios; al reactivarlo
+    // se desbloquean sólo los que siguen activos individualmente.
+    const { data: users, error: errU } = await admin
+      .from('usuarios').select('id, activo, rol').eq('comercio_id', id)
+    if (errU) return json({ error: errU.message }, 500)
+    for (const u of users ?? []) {
+      if (u.rol === 'superadmin') continue
+      const errB = await bloquearLogin(admin, u.id, !activo || u.activo === false)
+      if (errB) return json({ error: errB }, 500)
+    }
     return json({ ok: true })
   }
 
@@ -224,8 +235,17 @@ Deno.serve(async (req: Request) => {
 
   if (op === 'toggle_usuario') {
     const { id, activo } = body as any
-    const { error } = await admin.from('usuarios').update({ activo }).eq('id', id)
+    const { data: u, error } = await admin
+      .from('usuarios').update({ activo }).eq('id', id)
+      .select('rol, comercio:comercios!usuarios_comercio_id_fkey(activo)').single()
     if (error) return json({ error: error.message }, 500)
+
+    // Desactivado → no puede volver a iniciar sesión ni renovar la que tiene.
+    // Reactivado → se desbloquea, salvo que su comercio esté suspendido.
+    if (u.rol !== 'superadmin') {
+      const errB = await bloquearLogin(admin, id, !activo || (u as any).comercio?.activo === false)
+      if (errB) return json({ error: errB }, 500)
+    }
     return json({ ok: true })
   }
 
@@ -297,6 +317,14 @@ Deno.serve(async (req: Request) => {
 })
 
 // ── Helper ────────────────────────────────────────────────────────────────────
+// Bloqueo de login en Supabase Auth (ban). Devuelve el mensaje de error o null.
+async function bloquearLogin(admin: any, userId: string, bloquear: boolean): Promise<string | null> {
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: bloquear ? '876000h' : 'none',
+  })
+  return error ? error.message : null
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,

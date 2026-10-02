@@ -1,55 +1,55 @@
--- 013_devoluciones.sql
--- Devolución de productos de una venta (parcial o total).
---   · Lo devuelto vuelve al stock (movimiento tipo 'devolucion').
---   · La venta queda con lo que el cliente se llevó: baja cantidad/subtotal de cada ítem
---     y el total de la venta (descuento/recargo/IVA se prorratean).
---   · El importe devuelto es un crédito para el cliente, que se aplica en este orden:
---       1. a la deuda pendiente de esta misma venta (Cta. Cte.)
---       2. a otras deudas pendientes del cliente, la que vence antes primero (opcional)
---       3. lo que sobra se le reintegra; si es en efectivo con caja abierta,
---          queda como retiro de caja
---   · venta_pagos no se toca: registra lo que entró en su momento. El reintegro
---     es la salida.
+-- 016_usuarios_inactivos.sql
+-- Desactivar un usuario o un comercio desde el superadmin sólo guardaba activo = false:
+-- nada lo controlaba y el usuario seguía operando. Ahora:
+--   · auth_rol() y auth_comercio_id() devuelven NULL si el usuario o su comercio están
+--     inactivos → fallan todas las policies de escritura y las funciones de ventas.
+--   · (admin-ops, aparte) además bloquea el login en Supabase Auth.
+-- Y un propietario ya no puede cambiar plan / activo / modulos_custom de su comercio:
+-- sólo el superadmin (admin-ops, con service_role).
 
--- ── Columnas nuevas ───────────────────────────────────────
-ALTER TABLE venta_items
-  ADD COLUMN IF NOT EXISTS cantidad_devuelta NUMERIC(10,3) NOT NULL DEFAULT 0;
+-- ── Rol y comercio del usuario logueado, sólo si está activo ──
+CREATE OR REPLACE FUNCTION auth_rol()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT u.rol
+  FROM public.usuarios u
+  LEFT JOIN public.comercios c ON c.id = u.comercio_id
+  WHERE u.id = auth.uid()
+    AND COALESCE(u.activo, true)
+    AND COALESCE(c.activo, true)
+$$;
 
-ALTER TABLE ventas
-  ADD COLUMN IF NOT EXISTS devuelto_monto NUMERIC(12,2) NOT NULL DEFAULT 0;
+CREATE OR REPLACE FUNCTION auth_comercio_id()
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT u.comercio_id
+  FROM public.usuarios u
+  LEFT JOIN public.comercios c ON c.id = u.comercio_id
+  WHERE u.id = auth.uid()
+    AND COALESCE(u.activo, true)
+    AND COALESCE(c.activo, true)
+$$;
 
--- ── Devoluciones ──────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS devoluciones (
-  id                 UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
-  comercio_id        UUID          NOT NULL REFERENCES comercios(id) ON DELETE CASCADE,
-  venta_id           UUID          NOT NULL REFERENCES ventas(id)    ON DELETE CASCADE,
-  cliente_id         UUID          REFERENCES clientes(id) ON DELETE SET NULL,
-  fecha              DATE          NOT NULL DEFAULT CURRENT_DATE,
-  monto              NUMERIC(12,2) NOT NULL CHECK (monto > 0),     -- valor de lo devuelto
-  items              JSONB         NOT NULL DEFAULT '[]',          -- [{ venta_item_id, producto_id, descripcion, cantidad, subtotal }]
-  imputaciones       JSONB         NOT NULL DEFAULT '[]',          -- [{ venta_id, numero, monto }] crédito aplicado a deudas
-  reintegro          NUMERIC(12,2) NOT NULL DEFAULT 0,             -- lo que se le devolvió en plata
-  reintegro_medio    TEXT,
-  caja_movimiento_id UUID          REFERENCES caja_movimientos(id) ON DELETE SET NULL,
-  notas              TEXT,
-  usuario_id         UUID          REFERENCES usuarios(id) ON DELETE SET NULL,
-  created_at         TIMESTAMPTZ   NOT NULL DEFAULT now()
-);
+-- ── Campos del comercio que sólo maneja el superadmin ──
+CREATE OR REPLACE FUNCTION proteger_campos_comercio()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  -- service_role = admin-ops; postgres = SQL Editor
+  IF COALESCE(auth.role(), '') <> 'service_role'
+     AND current_user NOT IN ('postgres', 'supabase_admin')
+     AND (NEW.plan           IS DISTINCT FROM OLD.plan
+       OR NEW.activo         IS DISTINCT FROM OLD.activo
+       OR NEW.modulos_custom IS DISTINCT FROM OLD.modulos_custom) THEN
+    RAISE EXCEPTION 'El plan, el estado y los módulos del comercio sólo los cambia el administrador.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
-CREATE INDEX IF NOT EXISTS idx_devoluciones_venta   ON devoluciones(venta_id);
-CREATE INDEX IF NOT EXISTS idx_devoluciones_cliente ON devoluciones(cliente_id, created_at DESC);
+DROP TRIGGER IF EXISTS tg_comercios_proteger ON comercios;
+CREATE TRIGGER tg_comercios_proteger
+  BEFORE UPDATE ON comercios
+  FOR EACH ROW EXECUTE FUNCTION proteger_campos_comercio();
 
-ALTER TABLE devoluciones ENABLE ROW LEVEL SECURITY;
-
--- Sólo lectura: se insertan únicamente a través de registrar_devolucion()
-CREATE POLICY "dev_select" ON devoluciones
-  FOR SELECT TO authenticated
-  USING (comercio_id IN (SELECT comercio_id FROM usuarios WHERE id = auth.uid()));
-
--- ── Registrar devolución (atómico) ────────────────────────
--- SECURITY DEFINER porque el cajero no tiene permiso de escritura sobre productos;
--- los controles de comercio y rol se hacen acá adentro.
--- p_items: [{ "venta_item_id": uuid, "cantidad": numeric }]
+-- ── Funciones de ventas: usan auth_rol()/auth_comercio_id() (copiadas de 013 y 014) ──
 CREATE OR REPLACE FUNCTION registrar_devolucion(
   p_venta_id        UUID,
   p_items           JSONB,
@@ -239,5 +239,133 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION registrar_devolucion(UUID, JSONB, BOOLEAN, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION registrar_devolucion(UUID, JSONB, BOOLEAN, TEXT, TEXT) TO authenticated;
+CREATE OR REPLACE FUNCTION descontar_stock_venta(p_venta_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid         UUID := auth.uid();
+  v_comercio_id UUID;
+  v_rol         TEXT;
+  v_venta       RECORD;
+  v_prod        RECORD;
+  r             RECORD;
+  v_out         JSONB := '[]'::jsonb;
+BEGIN
+  -- auth_*() devuelven NULL si el usuario o su comercio están desactivados (016)
+  v_comercio_id := auth_comercio_id();
+  v_rol         := auth_rol();
+  IF v_comercio_id IS NULL OR v_rol NOT IN ('propietario', 'cajero') THEN
+    RAISE EXCEPTION 'No tenés permiso para registrar ventas.';
+  END IF;
+
+  SELECT id, numero, estado INTO v_venta FROM ventas
+  WHERE id = p_venta_id AND comercio_id = v_comercio_id
+  FOR UPDATE;
+  IF v_venta.id IS NULL THEN
+    RAISE EXCEPTION 'Venta no encontrada.';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM stock_movimientos
+             WHERE referencia_tipo = 'venta' AND referencia_id = p_venta_id AND tipo = 'salida') THEN
+    RETURN v_out;
+  END IF;
+
+  -- Un producto puede repetirse en varios ítems: se descuenta una sola vez por producto
+  FOR r IN
+    SELECT producto_id, SUM(cantidad) AS cantidad, MAX(precio_unitario) AS precio
+    FROM venta_items
+    WHERE venta_id = p_venta_id AND producto_id IS NOT NULL
+    GROUP BY producto_id
+  LOOP
+    SELECT stock_actual, controla_stock INTO v_prod FROM productos
+    WHERE id = r.producto_id AND comercio_id = v_comercio_id
+    FOR UPDATE;
+    CONTINUE WHEN NOT FOUND OR NOT v_prod.controla_stock;
+
+    UPDATE productos SET stock_actual = stock_actual - r.cantidad WHERE id = r.producto_id;
+    INSERT INTO stock_movimientos (comercio_id, producto_id, tipo, cantidad, stock_anterior, stock_posterior,
+                                   precio_unitario, motivo, referencia_tipo, referencia_id, usuario_id)
+    VALUES (v_comercio_id, r.producto_id, 'salida', r.cantidad, v_prod.stock_actual, v_prod.stock_actual - r.cantidad,
+            r.precio, 'Venta #' || v_venta.numero, 'venta', p_venta_id, v_uid);
+
+    v_out := v_out || jsonb_build_object('producto_id', r.producto_id, 'cantidad', r.cantidad);
+  END LOOP;
+
+  RETURN v_out;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION anular_venta(p_venta_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid         UUID := auth.uid();
+  v_comercio_id UUID;
+  v_rol         TEXT;
+  v_venta       RECORD;
+  v_prod        RECORD;
+  r             RECORD;
+  v_out         JSONB := '[]'::jsonb;
+BEGIN
+  -- auth_*() devuelven NULL si el usuario o su comercio están desactivados (016)
+  v_comercio_id := auth_comercio_id();
+  v_rol         := auth_rol();
+  IF v_comercio_id IS NULL OR v_rol NOT IN ('propietario', 'cajero') THEN
+    RAISE EXCEPTION 'No tenés permiso para anular ventas.';
+  END IF;
+
+  SELECT id, numero, estado, cc_pagado, devuelto_monto, es_saldo_inicial INTO v_venta FROM ventas
+  WHERE id = p_venta_id AND comercio_id = v_comercio_id
+  FOR UPDATE;
+  IF v_venta.id IS NULL THEN
+    RAISE EXCEPTION 'Venta no encontrada.';
+  END IF;
+  IF v_venta.estado <> 'completada' THEN
+    RAISE EXCEPTION 'La venta ya fue anulada.';
+  END IF;
+  IF v_venta.cc_pagado > 0.009 THEN
+    RAISE EXCEPTION 'La venta tiene cobros de Cta. Cte. aplicados; no se puede anular.';
+  END IF;
+  -- Con una devolución ya hecha, anular sacaría de la caja el pago entero de la venta
+  -- además del reintegro: lo que queda se devuelve con otra devolución.
+  IF v_venta.devuelto_monto > 0.009 THEN
+    RAISE EXCEPTION 'La venta ya tiene una devolución; para el resto usá Devolución.';
+  END IF;
+
+  UPDATE ventas SET estado = 'anulada' WHERE id = p_venta_id;
+
+  -- venta_items.cantidad ya está neta de devoluciones: se repone sólo lo que quedó vendido
+  FOR r IN
+    SELECT producto_id, SUM(cantidad) AS cantidad, MAX(precio_unitario) AS precio
+    FROM venta_items
+    WHERE venta_id = p_venta_id AND producto_id IS NOT NULL
+    GROUP BY producto_id
+    HAVING SUM(cantidad) > 0
+  LOOP
+    SELECT stock_actual, controla_stock INTO v_prod FROM productos
+    WHERE id = r.producto_id AND comercio_id = v_comercio_id
+    FOR UPDATE;
+    CONTINUE WHEN NOT FOUND OR NOT v_prod.controla_stock;
+
+    UPDATE productos SET stock_actual = stock_actual + r.cantidad WHERE id = r.producto_id;
+    INSERT INTO stock_movimientos (comercio_id, producto_id, tipo, cantidad, stock_anterior, stock_posterior,
+                                   precio_unitario, motivo, referencia_tipo, referencia_id, usuario_id)
+    VALUES (v_comercio_id, r.producto_id, 'entrada', r.cantidad, v_prod.stock_actual, v_prod.stock_actual + r.cantidad,
+            r.precio, 'Anulación venta #' || v_venta.numero, 'venta', p_venta_id, v_uid);
+
+    v_out := v_out || jsonb_build_object('producto_id', r.producto_id, 'cantidad', r.cantidad);
+  END LOOP;
+
+  RETURN v_out;
+END;
+$$;
+
+-- Verificación: tiene que devolver las 5 funciones con usa_auth = true en las de ventas
+SELECT proname, prosrc LIKE '%auth_comercio_id()%' AS usa_auth
+FROM pg_proc WHERE proname IN ('auth_rol','auth_comercio_id','registrar_devolucion','descontar_stock_venta','anular_venta');

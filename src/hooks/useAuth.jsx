@@ -17,6 +17,12 @@ export function AuthProvider({ children }) {
 
     if (!usuario) { setPerfil(null); return }
 
+    // Usuario desactivado por el administrador: cerrar sesión y explicar en el login
+    if (usuario.activo === false) {
+      await cerrarPorBloqueo('Tu usuario está desactivado. Consultá con el responsable del comercio.')
+      return
+    }
+
     // Superadmin no tiene comercio_id — saltear la query para evitar 400
     if (!usuario.comercio_id) {
       setPerfil({ ...usuario, comercio: null })
@@ -25,11 +31,23 @@ export function AuthProvider({ children }) {
 
     const { data: comercio } = await supabase
       .from('comercios')
-      .select('id, nombre, nombre_fantasia, localidad, provincia, condicion_iva, logo_url, cuit, direccion, telefono, ticket_pie')
+      .select('id, nombre, nombre_fantasia, localidad, provincia, condicion_iva, logo_url, cuit, direccion, telefono, ticket_pie, activo')
       .eq('id', usuario.comercio_id)
       .single()
 
+    if (comercio?.activo === false) {
+      await cerrarPorBloqueo('El comercio está suspendido. Comunicate con GestCom para reactivarlo.')
+      return
+    }
+
     setPerfil({ ...usuario, comercio: comercio ?? null })
+  }
+
+  async function cerrarPorBloqueo(motivo) {
+    try { sessionStorage.setItem('gestcom-bloqueo', motivo) } catch {}
+    setPerfil(null)
+    await supabase.auth.signOut()
+    if (window.location.pathname !== '/login') window.location.replace('/login')
   }
 
   useEffect(() => {

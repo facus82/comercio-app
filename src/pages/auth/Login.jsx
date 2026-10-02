@@ -9,7 +9,14 @@ export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  // Si la sesión se cerró por usuario/comercio desactivado, useAuth deja el motivo acá
+  const [error, setError] = useState(() => {
+    try {
+      const msg = sessionStorage.getItem('gestcom-bloqueo') || ''
+      sessionStorage.removeItem('gestcom-bloqueo')
+      return msg
+    } catch { return '' }
+  })
   const [loading, setLoading] = useState(false)
   const [recupero, setRecupero] = useState(null)   // null | 'enviando' | 'enviado'
 
@@ -32,7 +39,9 @@ export default function Login() {
     const { error } = await signIn(email, password)
     setLoading(false)
     if (error) {
-      setError('Email o contraseña incorrectos.')
+      setError(error.code === 'user_banned' || /banned/i.test(error.message || '')
+        ? 'Tu usuario está desactivado. Consultá con el responsable del comercio.'
+        : 'Email o contraseña incorrectos.')
     } else {
       navigate('/', { replace: true })
     }

@@ -30,10 +30,12 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 - **Agregar un lote** desde la ficha del producto registra el movimiento de stock (antes subía el stock sin dejar rastro en el historial). (`dff58ed`)
 
 ### Seguridad
-- **Crítico — permisos de usuarios**: la regla de escritura de la tabla `usuarios` sólo pedía ser propietario, sin mirar el comercio ni el rol asignado; un propietario podía modificar usuarios de otros comercios y asignarse cualquier rol. Ahora un propietario sólo administra usuarios de **su** comercio, sólo asigna roles de comercio (nunca superadmin), no puede mover usuarios a otro comercio ni borrarse a sí mismo. Verificado en producción: quedan sólo las 4 reglas nuevas. Migración: `015_usuarios_policy.sql`.
+- **Crítico — permisos de usuarios**: la regla de escritura de la tabla `usuarios` sólo pedía ser propietario, sin mirar el comercio ni el rol asignado; un propietario podía modificar usuarios de otros comercios y asignarse cualquier rol. Ahora un propietario sólo administra usuarios de **su** comercio, sólo asigna roles de comercio (nunca superadmin), no puede mover usuarios a otro comercio ni borrarse a sí mismo. Verificado en producción: quedan sólo las 4 reglas nuevas. Migración: `015_usuarios_policy.sql`. (`7ccdcdc`)
+- **Desactivar un usuario o suspender un comercio ahora bloquea el acceso de verdad** (antes sólo guardaba la marca y el usuario seguía operando). Tres capas: el superadmin bloquea el login en Supabase (no puede entrar ni renovar la sesión; suspender un comercio bloquea a todos sus usuarios y reactivarlo los desbloquea), la base rechaza cualquier escritura aunque tenga una sesión abierta, y la app cierra la sesión con el mensaje *"Tu usuario está desactivado…"* o *"El comercio está suspendido…"*. Probado con un cajero temporal: con la sesión vieja no puede vender ni anular, no puede renovar ni volver a entrar, y al reactivarlo vuelve a funcionar. Migración: `016_usuarios_inactivos.sql` + Edge Function `admin-ops` publicada (v6).
+- **Plan, estado y módulos del comercio** sólo los cambia el superadmin (o el SQL Editor); un propietario ya no puede modificarlos desde su sesión. (`016_usuarios_inactivos.sql`)
 
 ### Configuración requerida en Supabase
-Ejecutar en SQL Editor: `013_devoluciones.sql`, `014_stock_ventas.sql` y `015_usuarios_policy.sql` (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
+Ejecutar en SQL Editor: `013_devoluciones.sql`, `014_stock_ventas.sql`, `015_usuarios_policy.sql` y `016_usuarios_inactivos.sql`; publicar `admin-ops` (`npx supabase functions deploy admin-ops`) (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
 
 ---
 
