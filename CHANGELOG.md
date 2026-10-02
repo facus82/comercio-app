@@ -13,6 +13,10 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 - **Devoluciones parciales o totales**: botón **"Devolución"** en el detalle de la venta. Se indica cuánto devuelve de cada producto (o "Devuelve todo"); lo devuelto vuelve al stock y la venta queda con lo que el cliente se llevó (descuentos y recargos se prorratean). Antes de confirmar se ve el valor y a dónde va la plata. (`729927c`)
 - La plata devuelta se aplica en este orden: **1)** lo que falte pagar de esa venta en Cta. Cte., **2)** otras deudas del cliente, la que vence antes primero (se puede destildar), **3)** lo que sobra se le devuelve; en **efectivo con caja abierta** sale como **retiro de caja**, así el arqueo cierra. (`729927c`)
 - Las ventas con devolución llevan la marca **"devolución"** en el listado, y el detalle muestra qué se devolvió y cuándo. En la cuenta del cliente, la devolución aparece en el historial de la deuda. (`729927c`)
+- Fix: **las ventas y anulaciones hechas por un usuario cajero no movían el stock** (sólo el propietario podía modificar productos), y el historial registraba un movimiento que no había pasado. Ahora el stock se mueve en la base y funciona igual para propietario y cajero. Probado con un cajero: vender, devolver y anular. (`cf1707e`)
+- Fix: si un producto aparecía en dos renglones de la misma venta, el stock podía descontarse mal. (`cf1707e`)
+- Si la venta se guarda pero no se puede descontar el stock, se avisa sin marcarla como error, para no cobrarla dos veces. (`cf1707e`)
+- Una venta que **ya tuvo una devolución no se puede anular** (la caja restaría dos veces lo reintegrado): el resto se devuelve con **Devolución → "Devuelve todo"**. (`cf1707e`)
 
 ### Reportes, dashboard y caja
 - **Las devoluciones cuentan el día en que se hacen**: cada venta suma su total original en su fecha y la devolución resta en la suya. Así el reporte de un día no cambia porque al otro día devolvieron algo. Aplica a Reportes (con el aviso "devoluciones −$X"), ventas del período en el Dashboard, "Total vendido" de Caja y la caja del POS. (`729927c`)
@@ -26,7 +30,7 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 - **Agregar un lote** desde la ficha del producto registra el movimiento de stock (antes subía el stock sin dejar rastro en el historial). (`dff58ed`)
 
 ### Configuración requerida en Supabase
-Ejecutar en SQL Editor: `013_devoluciones.sql` (ya aplicado).
+Ejecutar en SQL Editor: `013_devoluciones.sql` (ya aplicado) y `014_stock_ventas.sql` (volver a ejecutarlo: la versión final agrega el bloqueo de anular con devolución).
 
 ---
 
