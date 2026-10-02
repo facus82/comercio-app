@@ -119,10 +119,71 @@ export function useVentas(comercioId, perfilId, desde, hasta = desde) {
     return { data: venta }
   }
 
+  // Anula la venta y devuelve al stock lo que había salido (con su movimiento de entrada).
+  // Si la venta a Cta. Cte. ya tiene cobros aplicados no se puede anular: esa plata quedaría sin imputar.
   async function anular(id) {
-    const { error } = await supabase.from('ventas').update({ estado: 'anulada' }).eq('id', id)
-    if (!error) setVentas(prev => prev.map(v => v.id === id ? { ...v, estado: 'anulada' } : v))
-    return { error }
+    const { data: venta, error: errV } = await supabase
+      .from('ventas')
+      .select('id, numero, estado, cc_pagado, items:venta_items(producto_id, cantidad, precio_unitario)')
+      .eq('id', id)
+      .single()
+    if (errV) return { error: errV }
+    if (venta.estado !== 'completada') return { error: { message: 'La venta ya no está completada.' } }
+    if (Number(venta.cc_pagado) > 0.009) {
+      return { error: { message: 'La venta tiene cobros de Cta. Cte. aplicados; no se puede anular.' } }
+    }
+
+    // Condición sobre el estado: si dos usuarios anulan a la vez, sólo uno repone el stock
+    const { data: anuladas, error } = await supabase
+      .from('ventas')
+      .update({ estado: 'anulada' })
+      .eq('id', id)
+      .eq('estado', 'completada')
+      .select('id')
+    if (error) return { error }
+    if (!anuladas?.length) return { error: { message: 'La venta ya fue anulada.' } }
+
+    // Cantidad a devolver por producto (un producto puede repetirse en varios ítems)
+    const devolver = new Map()
+    ;(venta.items || []).forEach(it => {
+      if (!it.producto_id) return
+      const prev = devolver.get(it.producto_id) || { cantidad: 0, precio: Number(it.precio_unitario) }
+      devolver.set(it.producto_id, { ...prev, cantidad: prev.cantidad + Number(it.cantidad) })
+    })
+
+    const repuestos = []
+    await Promise.all([...devolver].map(async ([productoId, { cantidad, precio }]) => {
+      const { data: prod } = await supabase
+        .from('productos')
+        .select('stock_actual, controla_stock')
+        .eq('id', productoId)
+        .single()
+
+      if (!prod || !prod.controla_stock) return
+
+      const stockAnterior = Number(prod.stock_actual) || 0
+      const stockNuevo    = stockAnterior + cantidad
+
+      await supabase.from('productos').update({ stock_actual: stockNuevo }).eq('id', productoId)
+
+      await supabase.from('stock_movimientos').insert({
+        comercio_id:     comercioId,
+        producto_id:     productoId,
+        tipo:            'entrada',
+        cantidad,
+        stock_anterior:  stockAnterior,
+        stock_posterior: stockNuevo,
+        precio_unitario: precio,
+        motivo:          `Anulación venta #${venta.numero}`,
+        referencia_tipo: 'venta',
+        referencia_id:   venta.id,
+        usuario_id:      perfilId,
+      })
+      repuestos.push({ producto_id: productoId, cantidad })
+    }))
+
+    setVentas(prev => prev.map(v => v.id === id ? { ...v, estado: 'anulada' } : v))
+    return { data: { repuestos } }
   }
 
   async function cargarDetalle(id) {

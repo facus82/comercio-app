@@ -344,6 +344,23 @@ export default function ProductoPanel({
       }
     }
 
+    // Movimiento de stock, igual que en un ingreso por compra
+    if (updates.stock_actual != null) {
+      await supabase.from('stock_movimientos').insert({
+        comercio_id:     producto.comercio_id,
+        producto_id:     producto.id,
+        lote_id:         data.id,
+        tipo:            'entrada',
+        cantidad:        cant,
+        stock_anterior:  updates.stock_actual - cant,
+        stock_posterior: updates.stock_actual,
+        precio_unitario: nuevoCosto,
+        motivo:          `Alta de lote${data.numero_lote ? ` ${data.numero_lote}` : ''}`,
+        referencia_tipo: 'lote',
+        referencia_id:   data.id,
+      })
+    }
+
     setLotes(prev => [data, ...prev])
     resetFormLote()
     setSavingLote(false)

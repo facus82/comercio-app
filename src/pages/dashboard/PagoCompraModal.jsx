@@ -35,22 +35,32 @@ export default function PagoCompraModal({ proveedor, comercioId, perfilId, onCer
       .in('estado', ['pendiente', 'parcial'])
       .order('fecha', { ascending: true })
 
-    setCompras(data || [])
-    if (data?.length === 1) {
-      setCompraSelId(data[0].id)
-      setMonto(String(data[0].total))
+    // Lo pendiente de cada compra descuenta los pagos ya registrados (compras parciales)
+    const ids = (data || []).map(c => c.id)
+    const { data: pagos } = ids.length
+      ? await supabase.from('proveedores_cc').select('referencia_id, monto')
+          .eq('referencia_tipo', 'compra').eq('tipo', 'pago').in('referencia_id', ids)
+      : { data: [] }
+    const pagado = {}
+    ;(pagos || []).forEach(p => { pagado[p.referencia_id] = (pagado[p.referencia_id] || 0) + Number(p.monto) })
+    const lista = (data || []).map(c => ({ ...c, pendiente: +Math.max(0, Number(c.total) - (pagado[c.id] || 0)).toFixed(2) }))
+
+    setCompras(lista)
+    if (lista.length === 1) {
+      setCompraSelId(lista[0].id)
+      setMonto(String(lista[0].pendiente))
     }
     setLoading(false)
   }
 
   const compraSel     = compras.find(c => c.id === compraSelId)
   const montoNum      = parseFloat(String(monto).replace(',', '.')) || 0
-  const esParcial     = compraSel && montoNum > 0 && montoNum < Number(compraSel.total)
-  const saldoRestante = compraSel ? Math.max(0, Number(compraSel.total) - montoNum) : 0
+  const esParcial     = compraSel && montoNum > 0 && montoNum < compraSel.pendiente - 0.01
+  const saldoRestante = compraSel ? Math.max(0, compraSel.pendiente - montoNum) : 0
 
   function selectCompra(c) {
     setCompraSelId(c.id)
-    setMonto(String(c.total))
+    setMonto(String(c.pendiente))
     setError(null)
   }
 
@@ -58,8 +68,8 @@ export default function PagoCompraModal({ proveedor, comercioId, perfilId, onCer
     e.preventDefault()
     if (!compraSel || montoNum <= 0) return
 
-    if (montoNum > Number(compraSel.total)) {
-      setError('El monto no puede superar el total de la compra')
+    if (montoNum > compraSel.pendiente + 0.009) {
+      setError(`El monto no puede superar lo pendiente de la compra (${fmt$(compraSel.pendiente)})`)
       return
     }
 
@@ -68,7 +78,7 @@ export default function PagoCompraModal({ proveedor, comercioId, perfilId, onCer
 
     try {
       /* 1 — Actualizar estado de la compra */
-      const nuevoEstado = montoNum >= Number(compraSel.total) ? 'pagada' : 'parcial'
+      const nuevoEstado = montoNum >= compraSel.pendiente - 0.01 ? 'pagada' : 'parcial'
       const { error: errC } = await supabase
         .from('compras')
         .update({ estado: nuevoEstado })
@@ -182,7 +192,7 @@ export default function PagoCompraModal({ proveedor, comercioId, perfilId, onCer
                       </span>
                     </div>
                     <div className="pago-compra-right">
-                      <span className="pago-compra-total">{fmt$(c.total)}</span>
+                      <span className="pago-compra-total">{fmt$(c.pendiente)}</span>
                       <span className={`badge badge--${c.estado === 'parcial' ? 'warning' : 'neutral'}`}>
                         {c.estado}
                       </span>
@@ -237,7 +247,7 @@ export default function PagoCompraModal({ proveedor, comercioId, perfilId, onCer
                       Pago parcial — resta {fmt$(saldoRestante)}
                     </span>
                   )}
-                  {compraSel && montoNum >= Number(compraSel.total) && montoNum > 0 && (
+                  {compraSel && montoNum >= compraSel.pendiente - 0.01 && montoNum > 0 && (
                     <span className="field-hint pago-total-hint">
                       <i className="ti ti-check" />
                       Cancela la deuda completa

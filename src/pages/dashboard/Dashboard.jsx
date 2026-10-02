@@ -78,7 +78,7 @@ function useDashboard(comercioId) {
     ] = await Promise.all([
       // Trae proveedor y estado para el desglose (igual que useCompras.js)
       supabase.from('compras')
-        .select('total, estado, proveedor:proveedores(id, razon_social, nombre_fantasia)')
+        .select('id, total, estado, proveedor:proveedores(id, razon_social, nombre_fantasia)')
         .in('estado', ['pendiente','parcial'])
         .eq('comercio_id', comercioId),
       supabase.from('productos').select('id, nombre, stock_actual, stock_minimo').eq('activo', true).eq('controla_stock', true).eq('comercio_id', comercioId),
@@ -96,13 +96,24 @@ function useDashboard(comercioId) {
       clientes:    clientesDeuda,
     }
 
+    // Lo ya pagado de cada compra (las 'parcial' sólo deben lo que falta)
+    const compraIds = (resCompras.data || []).map(c => c.id)
+    const { data: pagosCompras } = compraIds.length
+      ? await supabase.from('proveedores_cc').select('referencia_id, monto')
+          .eq('referencia_tipo', 'compra').eq('tipo', 'pago').in('referencia_id', compraIds)
+      : { data: [] }
+    const pagado = {}
+    ;(pagosCompras || []).forEach(p => { pagado[p.referencia_id] = (pagado[p.referencia_id] || 0) + Number(p.monto) })
+
     // Agrupar compras por proveedor
     const provMap = {}
     ;(resCompras.data || []).forEach(c => {
+      const pendiente = Math.max(0, Number(c.total) - (pagado[c.id] || 0))
+      if (pendiente <= 0.009) return
       const key    = c.proveedor?.id ?? 'sin_proveedor'
       const nombre = c.proveedor?.nombre_fantasia || c.proveedor?.razon_social || 'Sin proveedor'
       if (!provMap[key]) provMap[key] = { id: key, nombre, total: 0, cant: 0, parcial: false }
-      provMap[key].total += Number(c.total)
+      provMap[key].total += pendiente
       provMap[key].cant  += 1
       if (c.estado === 'parcial') provMap[key].parcial = true
     })

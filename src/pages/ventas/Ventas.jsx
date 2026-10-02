@@ -193,6 +193,21 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     setLoadingDetalle(false)
   }
 
+  async function handleAnular(v) {
+    if (Number(v.cc_pagado) > 0.009) {
+      toast?.error(`No se puede anular: el cliente ya pagó ${fmt$(v.cc_pagado)} de esta venta a Cta. Cte.`)
+      return false
+    }
+    if (!confirm(`¿Anular la venta ${v.numero} por ${fmt$(v.total)}? Los productos vuelven al stock.`)) return false
+    const res = await anular(v.id)
+    if (res.error) { toast?.error(res.error.message || 'No se pudo anular la venta.'); return false }
+    const repuestos = new Map(res.data.repuestos.map(r => [r.producto_id, r.cantidad]))
+    setProductos(prev => prev.map(p => repuestos.has(p.id)
+      ? { ...p, stock_actual: Number(p.stock_actual) + repuestos.get(p.id) } : p))
+    toast?.success(`Venta ${v.numero} anulada`)
+    return true
+  }
+
   /* Sincronizar comprobante con condicion_iva */
   useEffect(() => {
     const opts = comprobantesSegunFiscal(perfil?.comercio?.condicion_iva)
@@ -1515,7 +1530,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
                   <td><span className={`badge ${ESTADO_BADGE[v.estado] || 'badge--neutral'}`}>{v.estado}</span></td>
                   <td className="td-actions" onClick={e => e.stopPropagation()}>
                     {v.estado === 'completada' && (
-                      <button className="btn-icon btn-icon--danger" title="Anular" onClick={() => anular(v.id)}>
+                      <button className="btn-icon btn-icon--danger" title="Anular" onClick={() => handleAnular(v)}>
                         <i className="ti ti-ban" />
                       </button>
                     )}
@@ -1532,7 +1547,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
       <ModalDetalleVenta
         venta={ventaDetalle}
         onClose={() => setVentaDetalle(null)}
-        onAnular={async () => { await anular(ventaDetalle.id); setVentaDetalle(prev => ({ ...prev, estado: 'anulada' })) }}
+        onAnular={async () => { if (await handleAnular(ventaDetalle)) setVentaDetalle(prev => ({ ...prev, estado: 'anulada' })) }}
       />
     )}
     </>

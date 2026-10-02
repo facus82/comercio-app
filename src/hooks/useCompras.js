@@ -200,7 +200,50 @@ export function useCompras(comercioId, perfilId) {
     return { data: { estado: nuevoEstado } }
   }
 
+  // Volver a pendiente también deshace los pagos registrados: si no, la compra figura impaga
+  // pero sigue restando del saldo con el proveedor. proveedores_cc no admite borrar, así que
+  // se asienta un contra-movimiento por el total pagado.
   async function revertirEstado(compraId, nuevoEstado = 'pendiente') {
+    const compra = compras.find(c => c.id === compraId)
+    const proveedorId = compra?.proveedor?.id || compra?.proveedor_id
+
+    const { data: pagos, error: errP } = await supabase
+      .from('proveedores_cc')
+      .select('monto')
+      .eq('referencia_tipo', 'compra')
+      .eq('referencia_id', compraId)
+      .eq('tipo', 'pago')
+    if (errP) return { error: errP }
+
+    const pagado = +(pagos || []).reduce((s, p) => s + Number(p.monto), 0).toFixed(2)
+    if (pagado > 0.009 && proveedorId) {
+      const { data: ultimo } = await supabase
+        .from('proveedores_cc')
+        .select('saldo_posterior')
+        .eq('proveedor_id', proveedorId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const saldoAnt = Number(ultimo?.saldo_posterior ?? 0)
+      const refLabel = compra.numero_comprobante
+        ? ` ${compra.numero_comprobante}`
+        : compra.numero ? ` #${compra.numero}` : ''
+
+      const { error: errCC } = await supabase.from('proveedores_cc').insert({
+        proveedor_id:    proveedorId,
+        tipo:            'pago',
+        monto:           -pagado,
+        saldo_anterior:  saldoAnt,
+        saldo_posterior: saldoAnt + pagado,
+        concepto:        `Reversión de pagos${refLabel}`,
+        referencia_tipo: 'compra',
+        referencia_id:   compraId,
+        usuario_id:      perfilId ?? null,
+      })
+      if (errCC) return { error: errCC }
+    }
+
     const { error } = await supabase
       .from('compras').update({ estado: nuevoEstado }).eq('id', compraId)
     if (!error) {

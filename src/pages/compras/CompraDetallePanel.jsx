@@ -125,12 +125,16 @@ export default function CompraDetallePanel({
   }
 
   async function handleRevertir() {
-    if (!confirm('¿Revertir el estado a Pendiente?')) return
+    const aviso = totalPagado > 0.009 ? ` Se revierten los pagos registrados (${fmt$(totalPagado)}).` : ''
+    if (!confirm(`¿Revertir el estado a Pendiente?${aviso}`)) return
     setReverting(true)
     const res = await revertirEstado(compra.id, 'pendiente')
-    if (!res.error) {
+    if (res.error) {
+      setError(res.error.message || 'Error al revertir.')
+    } else {
       setCompra(prev => ({ ...prev, estado: 'pendiente' }))
       onActualizado?.('pendiente')
+      await cargar()
     }
     setReverting(false)
   }
