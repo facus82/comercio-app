@@ -75,37 +75,10 @@ export function useVentas(comercioId, perfilId, desde, hasta = desde) {
       if (errP) return { error: errP }
     }
 
-    // Movimientos de stock (salida por cada item con producto)
-    await Promise.all(items.map(async it => {
-      if (!it.producto_id) return
-
-      const { data: prod } = await supabase
-        .from('productos')
-        .select('stock_actual, controla_stock')
-        .eq('id', it.producto_id)
-        .single()
-
-      if (!prod || !prod.controla_stock) return
-
-      const stockAnterior = Number(prod.stock_actual) || 0
-      const stockNuevo    = stockAnterior - Number(it.cantidad)
-
-      await supabase.from('productos').update({ stock_actual: stockNuevo }).eq('id', it.producto_id)
-
-      await supabase.from('stock_movimientos').insert({
-        comercio_id:     comercioId,
-        producto_id:     it.producto_id,
-        tipo:            'salida',
-        cantidad:        Number(it.cantidad),
-        stock_anterior:  stockAnterior,
-        stock_posterior: stockNuevo,
-        precio_unitario: Number(it.precio_unitario),
-        motivo:          `Venta #${venta.numero}`,
-        referencia_tipo: 'venta',
-        referencia_id:   venta.id,
-        usuario_id:      perfilId,
-      })
-    }))
+    // Salida de stock: en la base (014_stock_ventas.sql), porque el cajero no puede escribir productos
+    // Si falla, la venta igual quedó guardada: se avisa en vez de devolver error (evita cobrarla dos veces)
+    const { error: errS } = await supabase.rpc('descontar_stock_venta', { p_venta_id: venta.id })
+    const aviso = errS ? `La venta se guardó, pero no se pudo descontar el stock: ${errS.message}` : null
 
     // Promociones aplicadas
     if (promos.length > 0) {
@@ -116,71 +89,14 @@ export function useVentas(comercioId, perfilId, desde, hasta = desde) {
 
     const ventaConPagos = { ...venta, pagos: pagos.map(p => ({ medio_pago: p.medio_pago, monto: Number(p.monto) })) }
     setVentas(prev => [ventaConPagos, ...prev])
-    return { data: venta }
+    return { data: venta, aviso }
   }
 
-  // Anula la venta y devuelve al stock lo que había salido (con su movimiento de entrada).
+  // Anula la venta y devuelve al stock lo que había salido, todo en la base (014_stock_ventas.sql).
   // Si la venta a Cta. Cte. ya tiene cobros aplicados no se puede anular: esa plata quedaría sin imputar.
   async function anular(id) {
-    const { data: venta, error: errV } = await supabase
-      .from('ventas')
-      .select('id, numero, estado, cc_pagado, items:venta_items(producto_id, cantidad, precio_unitario)')
-      .eq('id', id)
-      .single()
-    if (errV) return { error: errV }
-    if (venta.estado !== 'completada') return { error: { message: 'La venta ya no está completada.' } }
-    if (Number(venta.cc_pagado) > 0.009) {
-      return { error: { message: 'La venta tiene cobros de Cta. Cte. aplicados; no se puede anular.' } }
-    }
-
-    // Condición sobre el estado: si dos usuarios anulan a la vez, sólo uno repone el stock
-    const { data: anuladas, error } = await supabase
-      .from('ventas')
-      .update({ estado: 'anulada' })
-      .eq('id', id)
-      .eq('estado', 'completada')
-      .select('id')
+    const { data: repuestos, error } = await supabase.rpc('anular_venta', { p_venta_id: id })
     if (error) return { error }
-    if (!anuladas?.length) return { error: { message: 'La venta ya fue anulada.' } }
-
-    // Cantidad a devolver por producto (un producto puede repetirse en varios ítems)
-    const devolver = new Map()
-    ;(venta.items || []).forEach(it => {
-      if (!it.producto_id) return
-      const prev = devolver.get(it.producto_id) || { cantidad: 0, precio: Number(it.precio_unitario) }
-      devolver.set(it.producto_id, { ...prev, cantidad: prev.cantidad + Number(it.cantidad) })
-    })
-
-    const repuestos = []
-    await Promise.all([...devolver].map(async ([productoId, { cantidad, precio }]) => {
-      const { data: prod } = await supabase
-        .from('productos')
-        .select('stock_actual, controla_stock')
-        .eq('id', productoId)
-        .single()
-
-      if (!prod || !prod.controla_stock) return
-
-      const stockAnterior = Number(prod.stock_actual) || 0
-      const stockNuevo    = stockAnterior + cantidad
-
-      await supabase.from('productos').update({ stock_actual: stockNuevo }).eq('id', productoId)
-
-      await supabase.from('stock_movimientos').insert({
-        comercio_id:     comercioId,
-        producto_id:     productoId,
-        tipo:            'entrada',
-        cantidad,
-        stock_anterior:  stockAnterior,
-        stock_posterior: stockNuevo,
-        precio_unitario: precio,
-        motivo:          `Anulación venta #${venta.numero}`,
-        referencia_tipo: 'venta',
-        referencia_id:   venta.id,
-        usuario_id:      perfilId,
-      })
-      repuestos.push({ producto_id: productoId, cantidad })
-    }))
 
     setVentas(prev => prev.map(v => v.id === id ? { ...v, estado: 'anulada' } : v))
     return { data: { repuestos } }

@@ -198,6 +198,10 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
       toast?.error(`No se puede anular: el cliente ya pagó ${fmt$(v.cc_pagado)} de esta venta a Cta. Cte. Si devuelve los productos, usá "Devolución" en el detalle de la venta.`, 8000)
       return false
     }
+    if (Number(v.devuelto_monto) > 0.009) {
+      toast?.error(`No se puede anular: la venta ya tiene una devolución de ${fmt$(v.devuelto_monto)}. Para el resto usá "Devolución" en el detalle de la venta.`, 8000)
+      return false
+    }
     if (!confirm(`¿Anular la venta ${v.numero} por ${fmt$(v.total)}? Los productos vuelven al stock.`)) return false
     const res = await anular(v.id)
     if (res.error) { toast?.error(res.error.message || 'No se pudo anular la venta.'); return false }
@@ -717,6 +721,7 @@ export default function Ventas({ modoCaja = false, onVentaRegistrada }) {
     )
     setSaving(false)
     if (res.error) { setError(res.error.message || 'Error al guardar.'); return }
+    if (res.aviso) toast?.warning(res.aviso, 8000)
 
     if (!modoCaja) { resetPos(); setVista('lista'); return }
 
