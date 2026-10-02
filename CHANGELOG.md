@@ -30,7 +30,7 @@ Formato: lo más reciente arriba. Entre paréntesis, el commit.
 - **Agregar un lote** desde la ficha del producto registra el movimiento de stock (antes subía el stock sin dejar rastro en el historial). (`dff58ed`)
 
 ### Configuración requerida en Supabase
-Ejecutar en SQL Editor: `013_devoluciones.sql` (ya aplicado) y `014_stock_ventas.sql` (volver a ejecutarlo: la versión final agrega el bloqueo de anular con devolución).
+Ejecutar en SQL Editor: `013_devoluciones.sql` y `014_stock_ventas.sql` (versión final, con el bloqueo de anular con devolución). **Ambos ya aplicados y verificados en producción.**
 
 ---
 
